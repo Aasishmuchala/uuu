@@ -1,7 +1,7 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 
-import { Button } from './Button.tsx';
+import { Button, Text } from '../kit.ts';
 import styles from './ErrorBoundary.module.css';
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
 
 type State = { error: Error | null };
 
-/** Wrap each route and section, not just the root — a single top-level
+/** Wrap each screen and section, not just the root: a single top-level
  * boundary turns one broken component into an empty page. */
 export class ErrorBoundary extends Component<Props, State> {
   override state: State = { error: null };
@@ -58,19 +58,15 @@ function ErrorView({
   onRetry: () => void;
 }) {
   return (
-    <div data-bay-block="error" className={styles.error}>
-      <div className={styles.title}>
-        {label ? `The ${label} didn't load` : "This part didn't load"}
-      </div>
+    <div className={styles.error} role="alert">
+      <Text type="label">{label ? `The ${label} didn't load` : "This part didn't load"}</Text>
       <details className={styles.details}>
         <summary className={styles.summary}>Show details</summary>
         <pre className={styles.pre}>
           {error.name}: {error.message}
         </pre>
       </details>
-      <Button size="sm" onPress={onRetry}>
-        Try again
-      </Button>
+      <Button label="Try again" size="sm" onClick={onRetry} />
     </div>
   );
 }

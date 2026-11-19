@@ -1,0 +1,116 @@
+/* Film: the player at the left, the shot list and the one button at the right. */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--spacing-8);
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, calc(62vh * var(--ar)));
+  aspect-ratio: var(--ar);
+  margin-inline: auto;
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+}
+
+.under {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.filmTools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  padding: var(--spacing-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.sideHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.shots {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding-block: var(--spacing-2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-body-size);
+}
+
+.shot:last-child {
+  border-bottom: 0;
+}
+
+.shot[data-out] {
+  color: var(--color-text-secondary);
+}
+
+.shotName {
+  display: flex;
+  gap: var(--spacing-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.shotType {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+}
+
+.shotTime {
+  font-size: var(--text-supporting-size);
+  color: var(--color-text-secondary);
+}
+
+.transition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.side > div:has(> div > button) {
+  align-self: stretch;
+}

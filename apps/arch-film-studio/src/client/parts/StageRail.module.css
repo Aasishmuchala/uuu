@@ -1,0 +1,68 @@
+/* The six stages in one row, each a way into its screen. */
+
+.rail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 860px) {
+  .rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  height: 100%;
+  padding: var(--spacing-3);
+  border-radius: var(--radius-element);
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--color-overlay-hover);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .link {
+    transition: background-color 120ms ease;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.name {
+  font-size: var(--text-body-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.link[data-locked] .name {
+  color: var(--color-text-secondary);
+}
+
+.count {
+  font-size: var(--text-supporting-size);
+  color: var(--color-text-secondary);
+}
+
+.lock {
+  color: var(--color-icon-secondary);
+}

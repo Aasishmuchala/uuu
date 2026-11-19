@@ -1,0 +1,32 @@
+/* The shared look of both App Studio apps (PLAN-APPS-ASTRYX, "The shared look"). The same bytes in
+ * Arch Film Studio and Render to Film. Every colour on screen comes from the kit's own tokens
+ * (theme.css, dark by <html data-theme="dark">); this file adds only the face and two scrims for
+ * text that sits on a picture. */
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+}
+
+/* Unlayered, so it wins over the kit's layered theme tokens. One face for everything: no mono. */
+:root {
+  --font-family-body: Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family-heading: Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family-code: Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --studio-scrim: rgb(0 0 0 / 0.45);
+  --studio-scrim-strong: rgb(0 0 0 / 0.72);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Times, sizes and prices: figures of one width so columns line up. */
+.num {
+  font-variant-numeric: tabular-nums;
+}

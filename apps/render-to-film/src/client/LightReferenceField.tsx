@@ -1,15 +1,20 @@
 import { useState } from 'react';
-import { GalleryHorizontal, LoaderCircle, RotateCcw, SunMedium, Trash2 } from 'lucide-react';
+import { GalleryHorizontal, RotateCcw, SunMedium, Trash2 } from 'lucide-react';
 
-import { errorMessage } from './lib/runwayErrors.ts';
 import type { CastSheet } from './CastSheetField.tsx';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
+import { Banner, Button, StatusDot, Text } from './kit.ts';
+import { errorMessage } from './lib/runwayErrors.ts';
+import { MediaGrid, MediaGridSkeleton } from './parts/MediaGrid.tsx';
 import { ImageDropZone } from './ui/ImageDropZone.tsx';
-import { ImagePicker, type ImagePickerItem } from './ui/ImagePicker.tsx';
-import { SkeletonBlock } from './ui/Skeleton.tsx';
-import { Text } from './ui/Text.tsx';
-import styles from './Studio.module.css';
+import styles from './parts/RefField.module.css';
+
+/** One of the visitor's finished stills, as the picker shows it. */
+export type StillChoice = {
+  id: string;
+  src: string;
+  alt: string;
+  caption: string;
+};
 
 export type LightReferenceFieldProps = {
   /** Same shape as a cast sheet: a local preview, and its hosted URL once uploaded. */
@@ -24,28 +29,27 @@ export type LightReferenceFieldProps = {
   onFile: (file: File) => void;
   onRemove: () => void;
   /** Finished stills whose light can be matched, newest first. */
-  stills: readonly ImagePickerItem[];
+  stills: readonly StillChoice[];
   /** The library behind `stills` is still loading. */
   stillsLoading?: boolean | undefined;
   /** Why the library could not be loaded, when it could not. */
   stillsError?: unknown;
   onRetryStills?: (() => void) | undefined;
   /** The still being matched, when the reference is one of the visitor's stills. */
-  matched: ImagePickerItem | null;
+  matched: StillChoice | null;
   onMatch: (stillId: string | null) => void;
 };
 
 /**
- * The optional lighting reference in the Look step: a photo whose light the
- * still copies, and nothing else from it. While one is in, the look presets
- * are switched off.
+ * The optional lighting reference in the Look group: a photo whose light the still copies, and
+ * nothing else from it, or one of the visitor's own stills for a matching series. While one is
+ * in, the look presets are switched off.
  */
 export function LightReferenceField({
   image,
   uploading,
   error,
   lockedReason,
-  modelName,
   disabled = false,
   onFile,
   onRemove,
@@ -60,42 +64,34 @@ export function LightReferenceField({
   const [picking, setPicking] = useState(false);
   if (matched) {
     return (
-      <div className={styles.lightRef}>
-        <div className={styles.castHead}>
-          <Text as="span" size="sm" className={styles.castTitle}>
-            Lighting reference: one of your stills
-          </Text>
-          <Text tone="muted" size="sm" as="p">
-            Every view you shoot now gets this still&rsquo;s exact light, for a matching series. Swap the render in step 1 for each view.
+      <div className={styles.field}>
+        <div className={styles.head}>
+          <Text type="label">Lighting reference: one of your stills</Text>
+          <Text type="supporting" as="p">
+            Every view you shoot now gets this still&rsquo;s exact light, for a matching series. Swap the render above
+            for each view.
           </Text>
         </div>
-        <div className={styles.castBody}>
-          <figure className={styles.castThumb}>
-            <img
-              className={styles.image}
-              src={matched.src}
-              alt={`Matching the light of ${matched.alt}`}
-              data-dimmed={lockedReason ? '' : undefined}
-            />
+        <div className={styles.body}>
+          <figure className={styles.thumb}>
+            <img src={matched.src} alt={`Matching the light of ${matched.alt}`} data-dim={lockedReason ? true : undefined} />
           </figure>
-          <div className={styles.castSide}>
-            <Text tone="muted" size="sm" as="p" className={styles.castName}>
+          <div className={styles.side}>
+            <Text type="supporting" maxLines={1}>
               {matched.caption}
             </Text>
             <Button
+              label="Stop matching"
               size="sm"
               variant="ghost"
               icon={<Trash2 size={14} />}
-              disabled={disabled}
-              onPress={() => onMatch(null)}
-              aria-label="Stop matching this still's light"
-            >
-              Stop matching
-            </Button>
+              isDisabled={disabled}
+              onClick={() => onMatch(null)}
+            />
           </div>
         </div>
         {lockedReason && (
-          <Text tone="muted" size="sm" as="p">
+          <Text type="supporting" as="p">
             {lockedReason}
           </Text>
         )}
@@ -103,136 +99,107 @@ export function LightReferenceField({
     );
   }
   return (
-    <div className={styles.lightRef}>
-      <div className={styles.castHead}>
-        <Text as="span" size="sm" className={styles.castTitle}>
-          Lighting reference (optional)
-        </Text>
-        <Text tone="muted" size="sm" as="p">
-          A photo whose light to match: time of day, sun, shadows, sky and grade. Nothing else in it is copied.
+    <div className={styles.field}>
+      <div className={styles.head}>
+        <Text type="label">Lighting reference</Text>
+        <Text type="supporting" as="p">
+          Optional. A photo whose light to match: time of day, sun, shadows, sky and grade. Nothing else in it is copied.
         </Text>
       </div>
 
-      <div className={styles.castBody}>
-        <div className={styles.castZone}>
-          <ImageDropZone
-            onFile={onFile}
-            disabled={locked}
-            actionLabel={image ? 'Replace' : 'Choose photo'}
-          >
-            {image ? (
-              <figure className={styles.castThumb}>
-                <img
-                  className={styles.image}
-                  src={image.src}
-                  alt={`Lighting reference: ${image.name}`}
-                  data-dimmed={uploading || lockedReason ? '' : undefined}
-                />
-                {uploading && (
-                  <span className={styles.castLoader} role="status">
-                    <LoaderCircle size={18} className={styles.castSpin} aria-hidden />
-                    <span>Uploading…</span>
-                  </span>
-                )}
-              </figure>
-            ) : (
-              <div className={styles.castEmpty}>
-                {uploading ? (
-                  <LoaderCircle size={18} className={styles.castSpin} aria-hidden />
-                ) : (
-                  <SunMedium size={18} aria-hidden />
-                )}
-                <span>{uploading ? 'Uploading…' : 'Drop a lighting photo here'}</span>
-              </div>
-            )}
-          </ImageDropZone>
-        </div>
-
-        <div className={styles.castSide}>
-          {image && (
-            <>
-              <Text tone="muted" size="sm" as="p" className={styles.castName}>
-                {image.name}
+      <ImageDropZone onFile={onFile} disabled={locked} actionLabel={image ? 'Replace' : 'Choose photo'}>
+        {image ? (
+          <div className={styles.body}>
+            <figure className={styles.thumb}>
+              <img
+                src={image.src}
+                alt={`Lighting reference: ${image.name}`}
+                data-dim={uploading || lockedReason ? true : undefined}
+              />
+              {uploading && (
+                <span className={styles.state}>
+                  <StatusDot variant="accent" label="Uploading" tooltip="Uploading" isPulsing />
+                </span>
+              )}
+            </figure>
+            <div className={styles.side}>
+              <Text type="supporting" maxLines={1}>
+                {uploading ? 'Uploading…' : image.name}
               </Text>
               <Button
+                label="Remove"
                 size="sm"
                 variant="ghost"
                 icon={<Trash2 size={14} />}
-                disabled={disabled || uploading}
-                onPress={onRemove}
-                aria-label="Remove lighting reference"
-              >
-                Remove
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+                isDisabled={disabled || uploading}
+                onClick={onRemove}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className={styles.empty} data-disabled={locked || undefined}>
+            <SunMedium size={16} aria-hidden />
+            <Text type="supporting">{uploading ? 'Uploading…' : 'Drop a lighting photo here'}</Text>
+          </div>
+        )}
+      </ImageDropZone>
 
-      {!image && (
-        <div className={styles.lightPick}>
-          {picking ? (
-            <>
-              {stills.length > 0 ? (
-                <ImagePicker
-                  label="Match the light of one of your stills"
-                  items={stills}
-                  value={null}
-                  onChange={(id) => {
-                    setPicking(false);
-                    onMatch(id);
-                  }}
-                  disabled={locked}
-                />
-              ) : stillsLoading ? (
-                <div role="status" aria-live="polite">
-                  <Text tone="muted" size="sm" as="p">
-                    Loading your stills…
-                  </Text>
-                  <SkeletonBlock height={72} />
-                </div>
-              ) : stillsError != null ? (
-                <>
-                  <Alert tone="error" title="Your stills could not be loaded">
-                    {errorMessage(stillsError)}
-                  </Alert>
-                  {onRetryStills && (
-                    <Button size="sm" icon={<RotateCcw size={14} />} onPress={onRetryStills}>
-                      Try again
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <Text tone="muted" size="sm" as="p">
-                  No finished stills yet. Make one, then match the next views to its light.
-                </Text>
-              )}
-              <Button size="sm" variant="ghost" onPress={() => setPicking(false)}>
-                Cancel
-              </Button>
-            </>
-          ) : (
+      {!image &&
+        (picking ? (
+          <>
+            {stills.length > 0 ? (
+              <MediaGrid
+                label="Match the light of one of your stills"
+                density="small"
+                items={stills.map((s) => ({ id: s.id, kind: 'still' as const, thumb: s.src, title: s.caption, ratio: 3 / 2 }))}
+                active={null}
+                onActivate={(id) => {
+                  if (locked) return;
+                  setPicking(false);
+                  onMatch(id);
+                }}
+              />
+            ) : stillsLoading ? (
+              <div role="status" aria-live="polite">
+                <MediaGridSkeleton count={3} density="small" />
+              </div>
+            ) : stillsError != null ? (
+              <Banner
+                status="error"
+                title="Your stills could not be loaded"
+                description={errorMessage(stillsError)}
+                endContent={
+                  onRetryStills ? (
+                    <Button label="Try again" size="sm" icon={<RotateCcw size={14} />} onClick={onRetryStills} />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Text type="supporting" as="p">
+                No finished stills yet. Make one, then match the next views to its light.
+              </Text>
+            )}
+            <div className={styles.actions}>
+              <Button label="Cancel" size="sm" variant="ghost" onClick={() => setPicking(false)} />
+            </div>
+          </>
+        ) : (
+          <div className={styles.actions}>
             <Button
+              label="Match one of your stills"
               size="sm"
               icon={<GalleryHorizontal size={14} />}
-              disabled={locked}
-              onPress={() => setPicking(true)}
-            >
-              Match one of your stills
-            </Button>
-          )}
-        </div>
-      )}
+              isDisabled={locked}
+              onClick={() => setPicking(true)}
+            />
+          </div>
+        ))}
       {lockedReason && image && (
-        <Text tone="muted" size="sm" as="p">
+        <Text type="supporting" as="p">
           {lockedReason}
         </Text>
       )}
-      {error != null && (
-        <Alert tone="error" title="The lighting reference didn't upload">
-          {errorMessage(error)}
-        </Alert>
-      )}
+      {error != null && <Banner status="error" title="The lighting reference didn't upload" description={errorMessage(error)} />}
     </div>
   );
 }

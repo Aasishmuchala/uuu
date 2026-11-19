@@ -8,18 +8,16 @@ import {
   type StillUpscalerId,
   type UpscaleFactor,
 } from '../models.ts';
+import { Banner, Button, Heading, Text } from './kit.ts';
 import { libraryUrl, stillThumbUrl, useDownload } from './lib/download.ts';
 import { classifyRunwayError } from './lib/runwayErrors.ts';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { OptionSelect } from './parts/OptionSelect.tsx';
+import { StageWorking } from './parts/Stage.tsx';
 import { trpc } from './trpc.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
 import { FullSize } from './ui/FullSize.tsx';
 import { Buy, SpendNote, useSpend } from './ui/Price.tsx';
-import { RenderingStatus } from './ui/RenderingStatus.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { Select } from './ui/Select.tsx';
-import { Text } from './ui/Text.tsx';
-import styles from './Studio.module.css';
+import styles from './parts/SidePanel.module.css';
 
 export type UpscaleStillProps = {
   stillId: string;
@@ -82,20 +80,20 @@ export function UpscaleStill({ stillId, aspectRatio, name, job, onJob, earlier =
       const { id } = await upscale.mutateAsync({ stillId, upscaler, factor });
       onJob({ id, upscaler, factor, aspectRatio, name });
     } catch {
-      // Shown by RunwayErrorNotice from upscale.error.
+      // Shown by ErrorNote from upscale.error.
     }
   }
 
   return (
-    <div className={styles.upscale}>
-      <h3 className={styles.upscaleTitle}>{earlier ? 'Upscale of an earlier take' : 'Upscale'}</h3>
-      <Text tone="muted" size="sm" as="p">
+    <section className={styles.panel} aria-label={earlier ? 'Upscale of an earlier take' : 'Upscale'}>
+      <Heading level={3}>{earlier ? 'Upscale of an earlier take' : 'Upscale'}</Heading>
+      <Text type="supporting" as="p">
         {earlier
           ? 'This upscale belongs to the take before your newest one. It is saved in the Library either way.'
           : 'Makes a larger copy for print or close crops. It is saved next to the original, so you can animate either one.'}
       </Text>
-      <div className={styles.upscaleRow}>
-        <Select
+      <div className={styles.row}>
+        <OptionSelect
           label="Upscaler"
           options={STILL_UPSCALERS}
           value={upscaler}
@@ -106,90 +104,70 @@ export function UpscaleStill({ stillId, aspectRatio, name, job, onJob, earlier =
           disabled={busy}
           showHint={false}
         />
-        <Select
+        <OptionSelect
           label="Scale"
           options={UPSCALE_FACTORS}
           value={String(factor)}
           onChange={(id) => setFactor(id === '4' ? 4 : 2)}
           disabled={busy}
+          showHint={false}
         />
-        <Buy items={priceItems} note={false}>
-          <Button
-            icon={<ImageUpscale size={16} />}
-            loading={busy}
-            disabled={busy || spend.blocked || planBlocked || unavailable}
-            onPress={() => void run()}
-          >
-            {upscale.isPending ? 'Starting…' : rendering ? 'Upscaling…' : 'Upscale'}
-          </Button>
-        </Buy>
       </div>
-      <SpendNote items={priceItems} />
-      <Text tone="muted" size="sm" as="p" className={styles.meta}>
+      <Text type="supporting" as="p">
         {STILL_UPSCALERS.find((u) => u.id === upscaler)?.hint}. Each picture shows its price before you make it.
       </Text>
+      <Buy items={priceItems} note={false}>
+        <Button
+          label={upscale.isPending ? 'Starting' : rendering ? 'Upscaling' : 'Upscale'}
+          icon={<ImageUpscale size={16} />}
+          isLoading={busy}
+          isDisabled={busy || spend.blocked || planBlocked || unavailable}
+          onClick={() => void run()}
+        />
+      </Buy>
+      <SpendNote items={priceItems} />
 
-      <RunwayErrorNotice
-        error={shownError}
-        modelName={upscalerName(status.error && job ? job.upscaler : upscaler)}
-        onRetry={() => void (shownError === status.error ? status.refetch() : run())}
-      />
+      <ErrorNote error={shownError} />
 
       {(rendering || url || taskError) && (
-        <div className={styles.upscaleResult}>
-          <div className={styles.resultFrame} style={{ aspectRatio, ['--ar' as string]: aspectRatio }}>
+        <>
+          <div className={styles.frame} style={{ aspectRatio }}>
             {url ? (
               <img
-                className={styles.image}
                 src={job ? stillThumbUrl(job.id) : url}
                 alt="Upscaled film still (preview; open full size for every pixel)"
               />
             ) : rendering ? (
-              <RenderingStatus
-                label="Upscaling the still…"
-                progress={status.data?.progress}
-                runKey={job?.id}
-              />
-            ) : (
-              <div className={styles.frameAlert}>
-                <Alert tone="error" title="The upscale didn't finish">
-                  {taskError}
-                </Alert>
-              </div>
-            )}
+              <StageWorking label="Upscaling the still" progress={status.data?.progress} runKey={job?.id} />
+            ) : null}
           </div>
+          {taskError && <Banner status="error" title="The upscale didn't finish" description={taskError} />}
           {url && job && (
-            <div className={styles.resultActions}>
+            <div className={styles.actions}>
               <Button
+                label={saver.label('Download upscaled')}
                 icon={<Download size={16} />}
-                loading={saver.pending}
-                onPress={() => saver.start(libraryUrl('still', job.id), `${name}-${job.factor}x.png`)}
-              >
-                {saver.label('Download upscaled')}
-              </Button>
+                isLoading={saver.pending}
+                onClick={() => saver.start(libraryUrl('still', job.id), `${name}-${job.factor}x.png`)}
+              />
               <FullSize
                 src={libraryUrl('still', job.id)}
                 kind="still"
                 title={`${upscalerName(job.upscaler)}, ${job.factor}×`}
                 alt="Upscaled still"
+                iconOnly
               />
               {earlier && (
-                <Button variant="ghost" size="sm" icon={<X size={14} />} onPress={() => onJob(null)}>
-                  Dismiss
-                </Button>
+                <Button label="Dismiss" variant="ghost" size="sm" icon={<X size={14} />} onClick={() => onJob(null)} />
               )}
-              <Text tone="muted" size="sm" className={styles.resultNote}>
+              <Text type="supporting">
                 {upscalerName(job.upscaler)}, {job.factor}×
               </Text>
             </div>
           )}
-          {saver.error && (
-            <Alert tone="error" title="Download failed">
-              {saver.error}
-            </Alert>
-          )}
-        </div>
+          {saver.error && <Banner status="error" title="Download failed" description={saver.error} />}
+        </>
       )}
-    </div>
+    </section>
   );
 }

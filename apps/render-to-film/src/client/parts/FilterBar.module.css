@@ -1,0 +1,26 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  min-height: 28px;
+}
+
+.search {
+  width: 260px;
+  max-width: 100%;
+}
+
+.select {
+  width: 168px;
+}
+
+.end {
+  margin-left: auto;
+}

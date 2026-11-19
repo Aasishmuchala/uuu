@@ -1,86 +1,57 @@
-/* The Location tab's own pieces; the layout and stage come from Studio.module.css. */
+/* Location: the screenshot and the place lead the controls; the photograph takes the stage. */
 
-.dropEmpty {
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  min-height: 180px;
-  padding: 24px 20px 56px;
-  border: 1px dashed var(--bay-border-strong);
-  border-radius: var(--bay-r-md);
-  background: var(--bay-bg-subtle);
-  color: var(--bay-text-3);
-  text-align: center;
-}
-
-/* Latitude and longitude side by side. */
-.coords {
+.pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--spacing-3);
   align-items: start;
 }
 
-.fieldError {
+.gap {
+  width: var(--spacing-2);
+}
+
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.source {
+  position: relative;
   margin: 0;
-  color: var(--bay-err-fg);
-  font-size: 13px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-inner);
+  background: var(--studio-scrim);
 }
 
-@media (max-width: 560px) {
-  .coords {
-    grid-template-columns: 1fr;
-  }
+.source > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
-/* Earlier takes, as a shelf of thumbnails under the stage. */
-.earlier {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px 16px;
+.source > img[data-dim] {
+  opacity: 0.5;
 }
 
-.earlierCard {
+.drop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  min-height: 120px;
+  padding: var(--spacing-4) var(--spacing-4) 52px;
+  border: 1px dashed var(--color-border-emphasized);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+}
+
+.upscaleError {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.earlierCard:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: 3px;
-  border-radius: var(--bay-r-md);
-}
-
-.earlierThumb {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: contain;
-  border-radius: var(--bay-r-md);
-  background: var(--bay-stage-frame);
-  transition: opacity var(--bay-dur-fast) var(--bay-ease);
-}
-
-.earlierCard:hover .earlierThumb {
-  opacity: 0.85;
-}
-
-.upscaleRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px;
-  gap: 10px;
-  align-items: start;
-}
-
-@media (max-width: 560px) {
-  .upscaleRow {
-    grid-template-columns: 1fr;
-  }
+  align-items: flex-start;
+  gap: var(--spacing-2);
 }

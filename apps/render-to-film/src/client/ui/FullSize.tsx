@@ -1,8 +1,7 @@
 import { Maximize2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from './Button.tsx';
-import { Lightbox } from './Lightbox.tsx';
+import { Button, IconButton, Lightbox } from '../kit.ts';
 
 export type FullSizeProps = {
   /** The app's own address of the still or clip (`libraryUrl`). */
@@ -10,6 +9,11 @@ export type FullSizeProps = {
   kind: 'still' | 'clip';
   title: string;
   alt: string;
+  /** A compact icon button for a toolbar ("Open full size" stays its name and tooltip). */
+  iconOnly?: boolean | undefined;
+  /** Open and close it from outside too (the F key); leave out to let the button own it. */
+  isOpen?: boolean | undefined;
+  onOpenChange?: ((open: boolean) => void) | undefined;
 };
 
 /**
@@ -18,14 +22,28 @@ export type FullSizeProps = {
  * way off this Mac), so the view opens over the page; Escape or Close backs
  * out. Download stays its own button.
  */
-export function FullSize({ src, kind, title, alt }: FullSizeProps) {
-  const [open, setOpen] = useState(false);
+export function FullSize({ src, kind, title, alt, iconOnly = false, isOpen, onOpenChange }: FullSizeProps) {
+  const [own, setOwn] = useState(false);
+  const open = isOpen ?? own;
+  const setOpen = (v: boolean) => {
+    setOwn(v);
+    onOpenChange?.(v);
+  };
+  const label = 'Open full size';
   return (
     <>
-      <Button variant="ghost" icon={<Maximize2 size={16} />} onPress={() => setOpen(true)}>
-        Open full size
-      </Button>
-      <Lightbox src={open ? src : null} video={kind === 'clip'} alt={alt} title={title} onClose={() => setOpen(false)} />
+      {iconOnly ? (
+        <IconButton label={label} tooltip={label} variant="ghost" size="sm" icon={<Maximize2 size={16} />} onClick={() => setOpen(true)} />
+      ) : (
+        <Button label={label} variant="ghost" icon={<Maximize2 size={16} />} onClick={() => setOpen(true)} />
+      )}
+      <Lightbox
+        isOpen={open}
+        onOpenChange={setOpen}
+        media={{ type: kind === 'clip' ? 'video' : 'image', src, alt, caption: title }}
+        hasZoom={kind === 'still'}
+        hasAutoPlay={kind === 'clip'}
+      />
     </>
   );
 }

@@ -1,55 +1,69 @@
-import { Clapperboard, Download, Image as ImageIcon, Maximize2, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Columns2, Download, Image as ImageIcon, Star, Tag, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 
-import type { Clip, Still } from '../api.ts';
-import { litFromReference, lookLabel } from '../looks.ts';
-import { locationName } from '../location.ts';
-import { settingName } from '../surroundings.ts';
-import {
-  imageModelName,
-  imageResolutionName,
-  motionLabel,
-  videoModelName,
-  videoResolutionName,
-} from '../models.ts';
-import { clipAutoTags, normalizeTag, stillAutoTags } from '../tags.ts';
+import { MAX_TAGS, normalizeTag } from '../tags.ts';
 import { DeleteItemDialog, type DeleteTarget } from './DeleteItemDialog.tsx';
-import { Section } from './layouts/Section.tsx';
-import { libraryUrl, stillThumbUrl, stillViewUrl, useDownload } from './lib/download.ts';
+import {
+  AlertDialog,
+  Button,
+  EmptyState,
+  Heading,
+  Lightbox,
+  Popover,
+  Text,
+  TextInput,
+  useToast,
+} from './kit.ts';
+import { canCompare } from './lib/compare.ts';
+import { download } from './lib/download.ts';
+import { FAVOURITE_TAG, withFavourite } from './lib/favourites.ts';
+import {
+  facets,
+  filterItems,
+  libraryItems,
+  NO_FILTER,
+  tagCounts,
+  type LibraryFilter,
+  type LibraryItem,
+} from './lib/libraryFilter.ts';
+import { clipPreset, savePreset, stillPreset } from './lib/reuse.ts';
+import { fileSlug } from './lib/titles.ts';
+import { libraryUrl, stillThumbUrl, stillViewUrl } from './lib/urls.ts';
+import { CompareBoard } from './parts/CompareBoard.tsx';
+import { DetailsPanel } from './parts/DetailsPanel.tsx';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { FilterBar } from './parts/FilterBar.tsx';
+import { MediaGrid, MediaGridSkeleton, type GridItem } from './parts/MediaGrid.tsx';
+import { StarButton, useStar } from './parts/StarButton.tsx';
+import { useKeys } from './parts/useKeys.ts';
+import { useTagSaver } from './parts/useTags.ts';
 import { trpc } from './trpc.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
-import { EmptyState } from './ui/EmptyState.tsx';
-import { FilterChips } from './ui/FilterChips.tsx';
-import { Lightbox } from './ui/Lightbox.tsx';
-import { PageHeader } from './ui/PageHeader.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { SkeletonBlock } from './ui/Skeleton.tsx';
-import { TagEditor, TagPicker } from './ui/TagEditor.tsx';
-import { Text } from './ui/Text.tsx';
-import { TextInput } from './ui/TextInput.tsx';
 import styles from './LibraryPage.module.css';
 
-type Item =
-  | { kind: 'still'; id: string; createdAt: string; still: Still; auto: string[]; tags: string[]; title: string; detail: string; text: string }
-  | { kind: 'clip'; id: string; createdAt: string; clip: Clip; still: Still | undefined; auto: string[]; tags: string[]; title: string; detail: string; text: string };
+const PAGE = 48;
 
-const KINDS = [
-  { id: 'all', name: 'All' },
-  { id: 'still', name: 'Images' },
-  { id: 'clip', name: 'Videos' },
-] as const;
+/** The Edit screen reads this once to put a clip on its timeline (left for the Edit redesign). */
+export const OPEN_IN_EDIT_KEY = 'render-to-film:open-in-edit';
 
-const PAGE = 24;
+export type LibraryPageProps = {
+  active: boolean;
+  /** Open a screen: Stills or Video after "Reuse settings", Edit after "Open in Edit". */
+  onGo: (screen: 'stills' | 'video' | 'edit') => void;
+  /** A still: open Video with it picked. */
+  onAnimate: (stillId: string) => void;
+  /** An item to show in the inspector (from the command palette), then cleared. */
+  focusId?: string | null | undefined;
+  onFocused?: (() => void) | undefined;
+};
 
 /**
- * Every still and clip the visitor has made, newest first, with automatic
- * @tags (look, day/night, people, model) plus their own. Search matches
- * captions and tags; `@name` in the search box or a tag chip filters by tag.
+ * Every still and clip made here, in one grid: filters, a star, tags, several at once, compare
+ * and an inspector with how each was made. Reads the `library` query; stars and tags save
+ * through `setTags`.
  */
-export function LibraryPage({ active, onGoToStills }: { active: boolean; onGoToStills: () => void }) {
+export function LibraryPage({ active, onGo, onAnimate, focusId, onFocused }: LibraryPageProps) {
   const library = trpc.library.useQuery(undefined, {
-    // Only while this tab is on screen; the tab making something polls it itself.
+    // Only while this screen is up; the screen making something polls it itself.
     refetchInterval: (q) =>
       active &&
       (q.state.data?.stills.some((s) => s.status === 'pending') ||
@@ -57,369 +71,460 @@ export function LibraryPage({ active, onGoToStills }: { active: boolean; onGoToS
         ? 10_000
         : false,
   });
-  const [kind, setKind] = useState<string>('all');
-  const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState<string[]>([]);
+  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
+  const [density, setDensity] = useState<'large' | 'small'>('large');
   const [shown, setShown] = useState(PAGE);
-  const [zoom, setZoom] = useState<{ src: string; title: string } | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const anchor = useRef<string | null>(null);
+  const [inspect, setInspect] = useState<string | null>(null);
+  const [view, setView] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
+  const [batchDelete, setBatchDelete] = useState(false);
+  const [board, setBoard] = useState(false);
 
-  const items = useMemo<Item[]>(() => {
-    const data = library.data;
-    if (!data) return [];
-    const stills: Item[] = data.stills
-      .filter((s) => s.status !== 'failed')
-      .map((s) => {
-        const tags = s.tags ?? [];
-        const auto = stillAutoTags(s);
-        const title = stillTitle(s);
-        const detail = `${imageModelName(s.imageModel)}, ${formatDate(s.createdAt)}`;
-        return {
-          kind: 'still',
-          id: s.id,
-          createdAt: s.createdAt,
-          still: s,
-          auto,
-          tags,
-          title,
-          detail,
-          text: [title, detail, s.direction, s.people, ...auto, ...tags].join(' ').toLowerCase(),
-        };
-      });
-    const clips: Item[] = data.clips
-      .filter((c) => c.status !== 'failed')
-      .map((c) => {
-        const still = data.stills.find((s) => s.id === c.stillId);
-        const tags = c.tags ?? [];
-        const auto = clipAutoTags(c, still);
-        const title = clipTitle(c, still);
-        const detail = `${videoModelName(c.videoModel)}, ${formatDate(c.createdAt)}`;
-        return {
-          kind: 'clip',
-          id: c.id,
-          createdAt: c.createdAt,
-          clip: c,
-          still,
-          auto,
-          tags,
-          title,
-          detail,
-          text: [title, detail, c.direction, ...auto, ...tags].join(' ').toLowerCase(),
-        };
-      });
-    return [...stills, ...clips].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [library.data]);
+  const items = useMemo(() => libraryItems(library.data), [library.data]);
+  const filtered = useMemo(() => filterItems(items, filter), [items, filter]);
+  const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const tags = useMemo(() => tagCounts(items), [items]);
+  const { models, looks } = useMemo(() => facets(items), [items]);
+  const current = inspect ? byId.get(inspect) : undefined;
+  const picked = [...selected].map((id) => byId.get(id)).filter((i): i is LibraryItem => i !== undefined);
+  const compare = canCompare(picked);
+  const star = useStar();
 
-  const tagCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const it of items) for (const t of new Set([...it.tags, ...it.auto])) counts.set(t, (counts.get(t) ?? 0) + 1);
-    // The visitor's own tags first, then the automatic ones, each by use.
-    const own = new Set(items.flatMap((it) => it.tags));
-    return [...counts]
-      .map(([tag, count]) => ({ tag, count, own: own.has(tag) }))
-      .sort((a, b) => Number(b.own) - Number(a.own) || b.count - a.count || a.tag.localeCompare(b.tag));
-  }, [items]);
+  // The command palette asks for one item: show it, whatever the filters were.
+  useEffect(() => {
+    if (!focusId || !byId.has(focusId)) return;
+    setFilter(NO_FILTER);
+    setInspect(focusId);
+    const at = items.findIndex((i) => i.id === focusId);
+    if (at >= shown) setShown(Math.ceil((at + 1) / PAGE) * PAGE);
+    onFocused?.();
+  }, [focusId, byId]);
 
-  const filtered = useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const tagWords = words.filter((w) => w.startsWith('@')).map((w) => normalizeTag(w)).filter((t): t is string => !!t);
-    const textWords = words.filter((w) => !w.startsWith('@'));
-    return items.filter((it) => {
-      if (kind !== 'all' && it.kind !== kind) return false;
-      const all = [...it.tags, ...it.auto];
-      if (!picked.every((t) => all.includes(t))) return false;
-      if (!tagWords.every((t) => all.some((x) => x.startsWith(t)))) return false;
-      return textWords.every((w) => it.text.includes(w));
-    });
-  }, [items, kind, picked, query]);
+  // Ticks and the inspector forget items that are gone.
+  useEffect(() => {
+    setSelected((cur) => (([...cur].every((id) => byId.has(id))) ? cur : new Set([...cur].filter((id) => byId.has(id)))));
+    if (inspect && !byId.has(inspect)) setInspect(null);
+  }, [byId]);
 
-  const filtering = kind !== 'all' || picked.length > 0 || query.trim() !== '';
-  const clear = () => {
-    setKind('all');
-    setPicked([]);
-    setQuery('');
+  const setFilterAndPage = (f: LibraryFilter) => {
+    setFilter(f);
+    setShown(PAGE);
   };
+
+  const tick = (id: string, e: MouseEvent) => {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (e.shiftKey && anchor.current) {
+        const ids = filtered.map((i) => i.id);
+        const a = ids.indexOf(anchor.current);
+        const b = ids.indexOf(id);
+        if (a >= 0 && b >= 0) {
+          for (const x of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) {
+            if (!byId.get(x)?.pending) next.add(x);
+          }
+          return next;
+        }
+      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      anchor.current = id;
+      return next;
+    });
+  };
+
+  const openLarge = (id: string) => {
+    const at = filtered.findIndex((i) => i.id === id);
+    if (at >= 0 && !filtered[at]!.pending) setView(at);
+  };
+
+  const reuse = (it: LibraryItem) => {
+    if (it.kind === 'still') {
+      savePreset('still', stillPreset(it.still));
+      onGo('stills');
+    } else {
+      savePreset('clip', clipPreset(it.clip));
+      onGo('video');
+    }
+  };
+
+  const steps = (by: number) => {
+    if (filtered.length === 0) return;
+    const at = inspect ? filtered.findIndex((i) => i.id === inspect) : -1;
+    const next = filtered[Math.min(filtered.length - 1, Math.max(0, at + by))];
+    if (next) setInspect(next.id);
+  };
+
+  useKeys(
+    [
+      { key: 'ArrowLeft', onKey: () => steps(-1) },
+      { key: 'ArrowRight', onKey: () => steps(1) },
+      { key: 's', onKey: () => current && star.toggle(current.kind, current.id), disabled: !current || current.pending },
+      { key: 'c', onKey: () => setBoard(true), disabled: !compare.ok },
+      { key: 'f', onKey: () => current && openLarge(current.id), disabled: !current || current.pending },
+      { key: 'Escape', onKey: () => setSelected(new Set()), disabled: selected.size === 0 },
+    ],
+    active
+  );
+
+  const gridItems: GridItem[] = filtered.slice(0, shown).map((it) => ({
+    id: it.id,
+    kind: it.kind,
+    thumb: it.kind === 'still' ? stillThumbUrl(it.id) : it.still ? stillThumbUrl(it.still.id) : undefined,
+    title: it.title,
+    detail: it.detail,
+    ratio: it.ratio,
+    pending: it.pending,
+  }));
+  const media = filtered.map((it) =>
+    it.kind === 'still'
+      ? { type: 'image', src: stillViewUrl(it.id), alt: it.title, caption: it.title }
+      : { type: 'video', src: libraryUrl('clip', it.id), alt: it.title, caption: it.title }
+  );
 
   return (
     <div className={styles.screen}>
-      <PageHeader
-        title="Library"
-        description="Every image and video you make here is saved automatically. Tag them with @names to find them later."
-      />
-      <Section label="The library">
-        {library.isPending ? (
-          <div className={styles.grid} aria-label="Loading your library">
-            {Array.from({ length: 6 }, (_, i) => (
-              <SkeletonBlock key={i} height={200} />
-            ))}
-          </div>
-        ) : library.error ? (
-          <RunwayErrorNotice error={library.error} modelName="your library" onRetry={() => void library.refetch()} />
-        ) : items.length === 0 ? (
+      <header className={styles.head}>
+        <div className={styles.titles}>
+          <Heading level={1}>Library</Heading>
+          <Text type="supporting">Every image and video you make is kept here. Star the keepers; tag them to find them again.</Text>
+        </div>
+      </header>
+
+      {library.isPending ? (
+        <div className={styles.scroll}>
+          <MediaGridSkeleton count={12} density={density} />
+        </div>
+      ) : library.error && !library.data ? (
+        <div className={styles.scroll}>
+          <ErrorNote error={library.error} action={<Button label="Try again" size="sm" onClick={() => void library.refetch()} />} />
+        </div>
+      ) : items.length === 0 ? (
+        <div className={styles.empty}>
           <EmptyState
             title="Nothing saved yet"
-            hint="Make a still on the Stills tab, or animate one on the Video tab. Everything you make lands here."
-            action={
-              <Button variant="primary" icon={<ImageIcon size={16} />} onPress={onGoToStills}>
-                Make a still
-              </Button>
-            }
+            description="Make a still on Stills, or animate one on Video. Everything you make lands here."
+            actions={<Button label="Make a still" variant="primary" icon={<ImageIcon size={16} />} onClick={() => onGo('stills')} />}
           />
-        ) : (
-          <div className={styles.page}>
-            <div className={styles.toolbar}>
-              <div className={styles.search}>
-                <TextInput
-                  type="search"
-                  aria-label="Search the library"
-                  placeholder="Search, or type @tag"
-                  value={query}
-                  onChange={(v) => {
-                    setQuery(v);
-                    setShown(PAGE);
-                  }}
+        </div>
+      ) : (
+        <>
+          <div className={styles.bar}>
+            <FilterBar
+              value={filter}
+              onChange={setFilterAndPage}
+              models={models}
+              looks={looks}
+              tags={tags}
+              density={density}
+              onDensity={setDensity}
+              shown={filtered.length}
+              total={items.length}
+            />
+          </div>
+          <div className={styles.body}>
+            <div className={styles.scroll}>
+              {selected.size > 0 && (
+                <SelectionBar
+                  picked={picked}
+                  compareWhy={compare.ok ? null : compare.why}
+                  onCompare={() => setBoard(true)}
+                  onDelete={() => setBatchDelete(true)}
+                  onClear={() => setSelected(new Set())}
                 />
-              </div>
-              <FilterChips
-                label="Show"
-                options={KINDS}
-                value={kind}
-                onChange={(v) => {
-                  setKind(v);
-                  setShown(PAGE);
-                }}
-              />
-              {tagCounts.length > 0 && (
-                <div className={styles.tags}>
-                  <TagPicker
-                    label="Filter by tag"
-                    options={tagCounts}
-                    selected={picked}
-                    onChange={(t) => {
-                      setPicked(t);
-                      setShown(PAGE);
-                    }}
+              )}
+              {filtered.length === 0 ? (
+                <div className={styles.empty}>
+                  <EmptyState
+                    title="Nothing matches"
+                    description="Try another word or tag, or clear the filters."
+                    actions={<Button label="Clear filters" onClick={() => setFilterAndPage(NO_FILTER)} />}
                   />
                 </div>
+              ) : (
+                <>
+                  <MediaGrid
+                    label="Your library"
+                    items={gridItems}
+                    density={density}
+                    active={inspect}
+                    selected={selected}
+                    onTick={tick}
+                    onActivate={(id, e) => {
+                      if (e.shiftKey || e.metaKey || e.ctrlKey) tick(id, e);
+                      else setInspect((cur) => (cur === id ? null : id));
+                    }}
+                    onOpen={openLarge}
+                    corner={(g) => <StarButton kind={g.kind} id={g.id} variant="ghost" />}
+                  />
+                  {filtered.length > shown && (
+                    <div className={styles.more}>
+                      <Button
+                        label={`Show more (${filtered.length - shown} left)`}
+                        variant="secondary"
+                        onClick={() => setShown((n) => n + PAGE)}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
-            <div className={styles.summary}>
-              <Text tone="muted" size="sm">
-                {filtering
-                  ? `${filtered.length} of ${items.length} ${items.length === 1 ? 'item' : 'items'}`
-                  : `${items.length} ${items.length === 1 ? 'item' : 'items'}`}
-              </Text>
-              {filtering && (
-                <Button size="sm" variant="ghost" onPress={clear}>
-                  Clear filters
-                </Button>
-              )}
-            </div>
-            {filtered.length === 0 ? (
-              <EmptyState
-                title="Nothing matches"
-                hint="Try another word or tag, or clear the filters."
-                action={<Button onPress={clear}>Clear filters</Button>}
-              />
-            ) : (
-              <>
-                <div className={styles.grid}>
-                  {filtered.slice(0, shown).map((it) => (
-                    <LibraryCard
-                      key={`${it.kind}:${it.id}`}
-                      item={it}
-                      onZoom={() => setZoom({ src: stillViewUrl(it.id), title: it.title })}
-                      onTag={(t) => setPicked((p) => (p.includes(t) ? p : [...p, t]))}
-                      onDelete={() => setDeleting({ kind: it.kind, id: it.id, title: it.title })}
-                    />
-                  ))}
+            {current && (
+              <aside className={styles.inspector} aria-label="Details">
+                <div className={styles.inspectorHead}>
+                  <Text type="label">Details</Text>
+                  <Button label="Close details" isIconOnly icon={<X size={16} />} size="sm" variant="ghost" onClick={() => setInspect(null)} />
                 </div>
-                {filtered.length > shown && (
-                  <Button className={styles.more} onPress={() => setShown((n) => n + PAGE)}>
-                    Show more ({filtered.length - shown} left)
-                  </Button>
-                )}
-              </>
+                <DetailsPanel
+                  key={current.id}
+                  item={current}
+                  onView={() => openLarge(current.id)}
+                  onReuse={() => reuse(current)}
+                  onAnimate={current.kind === 'still' ? () => onAnimate(current.id) : undefined}
+                  onOpenInEdit={
+                    current.kind === 'clip'
+                      ? () => {
+                          try {
+                            sessionStorage.setItem(OPEN_IN_EDIT_KEY, current.id);
+                          } catch {
+                            // Private mode: Edit opens without it.
+                          }
+                          onGo('edit');
+                        }
+                      : undefined
+                  }
+                  onDelete={() => setDeleting({ kind: current.kind, id: current.id, title: current.title })}
+                  onTag={(t) => setFilterAndPage({ ...NO_FILTER, tags: [t] })}
+                />
+              </aside>
             )}
           </div>
-        )}
-      </Section>
+        </>
+      )}
+
       <Lightbox
-        src={zoom?.src ?? null}
-        alt={zoom?.title ?? ''}
-        title={zoom?.title ?? ''}
-        onClose={() => setZoom(null)}
+        isOpen={view !== null && media.length > 0}
+        onOpenChange={(open: boolean) => !open && setView(null)}
+        media={media}
+        index={view ?? 0}
+        onIndexChange={(i: number) => {
+          setView(i);
+          const it = filtered[i];
+          if (it) setInspect(it.id);
+        }}
+        hasZoom
+      />
+      <CompareBoard
+        isOpen={board && compare.ok}
+        onClose={() => setBoard(false)}
+        items={picked.map((it) => ({
+          id: it.id,
+          kind: it.kind,
+          src: it.kind === 'still' ? stillViewUrl(it.id) : libraryUrl('clip', it.id),
+          poster: it.kind === 'clip' && it.still ? stillThumbUrl(it.still.id) : undefined,
+          title: it.title,
+          detail: it.detail,
+          ratio: it.ratio,
+        }))}
+        pickLabel="Add to favourites"
+        onPick={(id) => {
+          const it = byId.get(id);
+          if (it && !it.tags.includes(FAVOURITE_TAG)) star.toggle(it.kind, it.id);
+          setBoard(false);
+        }}
       />
       <DeleteItemDialog target={deleting} onClose={() => setDeleting(null)} />
+      <BatchDelete
+        items={batchDelete ? picked : []}
+        onClose={() => setBatchDelete(false)}
+        onDone={() => {
+          setBatchDelete(false);
+          setSelected(new Set());
+        }}
+      />
     </div>
   );
 }
 
-function LibraryCard({
-  item,
-  onZoom,
-  onTag,
+/** What can be done to several items at once: star, tag, compare, download, delete. */
+function SelectionBar({
+  picked,
+  compareWhy,
+  onCompare,
   onDelete,
+  onClear,
 }: {
-  item: Item;
-  onZoom: () => void;
-  onTag: (tag: string) => void;
+  picked: readonly LibraryItem[];
+  compareWhy: string | null;
+  onCompare: () => void;
   onDelete: () => void;
+  onClear: () => void;
 }) {
-  const saver = useDownload();
-  const utils = trpc.useUtils();
-  const setTags = trpc.setTags.useMutation({
-    onMutate: async ({ kind, id, tags }) => {
-      await utils.library.cancel();
-      const before = utils.library.getData();
-      utils.library.setData(undefined, (lib) =>
-        lib &&
-        (kind === 'still'
-          ? { ...lib, stills: lib.stills.map((s) => (s.id === id ? { ...s, tags } : s)) }
-          : { ...lib, clips: lib.clips.map((c) => (c.id === id ? { ...c, tags } : c)) })
-      );
-      return { before };
-    },
-    onError: (_err, _input, context) => {
-      if (context?.before) utils.library.setData(undefined, context.before);
-    },
-    onSettled: () => void utils.library.invalidate(),
-  });
-  const pending = item.kind === 'still' ? item.still.status === 'pending' : item.clip.status === 'pending';
-  const filename = item.kind === 'still' ? `film-still-${fileSlug(stillTitle(item.still))}.png` : `film-clip-${item.id.slice(0, 8)}.mp4`;
-  // Thumbnails share one landscape frame so the grid reads as a contact
-  // sheet; a portrait take is shown whole inside it rather than cropped.
-  const portrait = item.still ? item.still.height > item.still.width : false;
+  const save = useTagSaver();
+  const toast = useToast();
+  const [busy, setBusy] = useState<'star' | 'tag' | 'download' | null>(null);
+  const [tagDraft, setTagDraft] = useState('');
+  const ready = picked.filter((p) => !p.pending);
+
+  // One save at a time, in order; the first refusal stops the rest and says which.
+  async function eachTags(next: (it: LibraryItem) => string[] | null, what: 'star' | 'tag') {
+    setBusy(what);
+    let skipped = 0;
+    try {
+      for (const it of ready) {
+        const tags = next(it);
+        if (!tags) {
+          skipped++;
+          continue;
+        }
+        try {
+          await save.mutateAsync({ kind: it.kind, id: it.id, tags });
+        } catch (e) {
+          toast({ body: `${it.title} could not be saved: ${(e as Error).message}`, type: 'error' });
+          return;
+        }
+      }
+      if (skipped > 0) {
+        toast({
+          body: `${skipped} ${skipped === 1 ? 'item has' : 'items have'} ${MAX_TAGS} tags already. Remove one to add another.`,
+        });
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function downloadAll() {
+    setBusy('download');
+    try {
+      for (const it of ready) {
+        await download(
+          libraryUrl(it.kind, it.id),
+          it.kind === 'still' ? `film-still-${fileSlug(it.title)}.png` : `film-clip-${fileSlug(it.title)}.mp4`
+        );
+      }
+    } catch (e) {
+      toast({ body: (e as Error).message, type: 'error' });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const addTag = () => {
+    const tag = normalizeTag(tagDraft);
+    setTagDraft('');
+    if (!tag || tag === FAVOURITE_TAG) return;
+    void eachTags((it) => {
+      if (it.tags.includes(tag)) return [...it.tags];
+      return it.tags.length >= MAX_TAGS ? null : [...it.tags, tag];
+    }, 'tag');
+  };
 
   return (
-    <figure className={styles.card}>
-      <div className={styles.media} data-portrait={portrait || undefined}>
-        {pending ? (
-          <div className={styles.pending}>
-            <SkeletonBlock height="100%" />
-            <span className={styles.pendingLabel}>
-              <Text tone="muted" size="sm">
-                Still rendering…
-              </Text>
-            </span>
+    <div className={styles.selection} role="toolbar" aria-label="Selected items">
+      <Text type="label" hasTabularNumbers>
+        {picked.length} selected
+      </Text>
+      <Button
+        label="Favourite"
+        size="sm"
+        icon={<Star size={14} />}
+        isLoading={busy === 'star'}
+        isDisabled={busy !== null || ready.length === 0}
+        onClick={() =>
+          void eachTags((it) => {
+            const next = withFavourite(it.tags, true);
+            return Array.isArray(next) ? next : null;
+          }, 'star')
+        }
+      />
+      <Popover
+        label="Tag the selected items"
+        content={
+          <div className={styles.tagPop}>
+            <TextInput
+              label={`Add a tag to ${ready.length} ${ready.length === 1 ? 'item' : 'items'}`}
+              size="sm"
+              placeholder="A tag, then press Enter"
+              value={tagDraft}
+              onChange={setTagDraft}
+              onEnter={addTag}
+              hasAutoFocus
+            />
           </div>
-        ) : item.kind === 'still' ? (
-          <button type="button" className={styles.zoom} onClick={onZoom} aria-label={`View ${item.title} full size`}>
-            <img src={stillThumbUrl(item.id)} alt={item.title} loading="lazy" decoding="async" className={styles.img} />
-            <span className={styles.zoomIcon} aria-hidden>
-              <Maximize2 size={14} />
-            </span>
-          </button>
-        ) : (
-          <video
-            className={styles.img}
-            src={libraryUrl('clip', item.id)}
-            poster={item.still ? stillThumbUrl(item.still.id) : undefined}
-            controls
-            playsInline
-            preload="none"
-            aria-label={item.title}
-          />
-        )}
-        <span className={styles.badge} aria-hidden>
-          {item.kind === 'still' ? <ImageIcon size={12} /> : <Clapperboard size={12} />}
-        </span>
-      </div>
-      <figcaption className={styles.caption}>
-        <div className={styles.titleRow}>
-          <div className={styles.titleText}>
-            <Text size="sm">{item.title}</Text>
-            <Text tone="muted" size="sm">
-              {item.detail}
-            </Text>
-          </div>
-          {!pending && (
-            <span className={styles.cardActions}>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<Download size={14} />}
-                aria-label={saver.pending ? saver.label(`Download ${item.title}`) : `Download ${item.title}`}
-                loading={saver.pending}
-                onPress={() => saver.start(libraryUrl(item.kind, item.id), filename)}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<Trash2 size={14} />}
-                aria-label={`Delete ${item.title}`}
-                onPress={onDelete}
-              />
-            </span>
-          )}
-        </div>
-        <div className={styles.autoTags} aria-label="Automatic tags">
-          {item.auto.map((t) => (
-            <button key={t} type="button" className={styles.autoTag} onClick={() => onTag(t)} aria-label={`Filter by @${t}`}>
-              @{t}
-            </button>
-          ))}
-        </div>
-        <TagEditor
-          label={item.title}
-          tags={item.tags}
-          onChange={(tags) => setTags.mutate({ kind: item.kind, id: item.id, tags })}
-        />
-        {saver.error && (
-          <Alert tone="error" title="Download failed">
-            {saver.error}
-          </Alert>
-        )}
-        <div className={styles.saveState} aria-live="polite">
-          {setTags.isPending ? (
-            <Text tone="muted" size="sm">
-              Saving…
-            </Text>
-          ) : setTags.error ? (
-            <Text size="sm" className={styles.saveError}>
-              Couldn't save tags: {setTags.error.message}
-            </Text>
-          ) : setTags.isSuccess ? (
-            <Text tone="muted" size="sm">
-              Saved
-            </Text>
-          ) : null}
-        </div>
-      </figcaption>
-    </figure>
+        }
+      >
+        <Button label="Tag" size="sm" icon={<Tag size={14} />} isLoading={busy === 'tag'} isDisabled={busy !== null || ready.length === 0} />
+      </Popover>
+      <Button
+        label="Compare"
+        size="sm"
+        icon={<Columns2 size={14} />}
+        isDisabled={compareWhy !== null}
+        tooltip={compareWhy ?? 'Side by side (C)'}
+        onClick={onCompare}
+      />
+      <Button
+        label="Download"
+        size="sm"
+        icon={<Download size={14} />}
+        isLoading={busy === 'download'}
+        isDisabled={busy !== null || ready.length === 0}
+        onClick={() => void downloadAll()}
+      />
+      <Button label="Delete" size="sm" variant="ghost" icon={<Trash2 size={14} />} isDisabled={busy !== null} onClick={onDelete} />
+      <span className={styles.push} />
+      <Button label="Clear selection" size="sm" variant="ghost" onClick={onClear} />
+    </div>
   );
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function stillTitle(s: Still): string {
-  const res = imageResolutionName(s.imageModel, s.resolution);
-  const size = s.upscaleOf ? `, upscaled ${s.scale ?? ''}×` : res ? `, ${res}` : '';
-  if (s.location) return `Location: ${locationName(s.location)}${size}`;
-  if (s.surroundings) return `Surroundings: ${settingName(s.surroundings.setting)}${size}`;
-  if (s.storyboard) return `Storyboard ${s.storyboard.order}: ${s.storyboard.title}${size}`;
-  const look = lookLabel(s.look, litFromReference(s));
-  return `${look}${s.crowd !== 'none' ? ', people' : ''}${size}`;
-}
-
-/** The still a clip was made from, named the way its library card names it. */
-function sourceName(s: Still): string {
-  if (s.location) return locationName(s.location);
-  if (s.surroundings) return settingName(s.surroundings.setting);
-  if (s.storyboard) return s.storyboard.title;
-  return lookLabel(s.look, litFromReference(s));
-}
-
-function fileSlug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'still';
-}
-
-function clipTitle(c: Clip, still: Still | undefined): string {
-  const look = still ? sourceName(still) : '';
-  const motion = motionLabel(c.motion, c.moveStyle, c.speed);
-  const res = videoResolutionName(c.videoModel, c.resolution);
-  const base = [look, motion].filter(Boolean).join(', ') || 'Clip';
-  return c.upscaleOf ? `${base}, upscaled ${c.scale ?? ''}×` : res ? `${base}, ${res}` : base;
+/** Deleting several items: one confirm, then one at a time, stopping at the first refusal. */
+function BatchDelete({ items, onClose, onDone }: { items: readonly LibraryItem[]; onClose: () => void; onDone: () => void }) {
+  const utils = trpc.useUtils();
+  const remove = trpc.deleteItem.useMutation();
+  const [failed, setFailed] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+  const run = async () => {
+    if (working) return;
+    setWorking(true);
+    setFailed(null);
+    try {
+      for (const it of items) {
+        try {
+          await remove.mutateAsync({ kind: it.kind, id: it.id });
+        } catch (e) {
+          setFailed(`${it.title} could not be deleted: ${(e as Error).message}`);
+          return;
+        }
+      }
+      onDone();
+    } finally {
+      setWorking(false);
+      await utils.library.invalidate();
+    }
+  };
+  const n = items.length;
+  return (
+    <AlertDialog
+      isOpen={n > 0}
+      onOpenChange={(open: boolean) => {
+        if (!open && !working) {
+          setFailed(null);
+          onClose();
+        }
+      }}
+      title={`Delete ${n} ${n === 1 ? 'item' : 'items'}?`}
+      description={[
+        `${n === 1 ? 'It' : 'They'} will be removed from your library. This can't be undone. Upscaled copies go with their originals; videos made from a still stay.`,
+        failed ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      actionLabel={`Delete ${n}`}
+      onAction={() => void run()}
+      isActionLoading={working}
+    />
+  );
 }

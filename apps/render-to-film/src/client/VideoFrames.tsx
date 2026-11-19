@@ -1,16 +1,15 @@
-import { ImagePlus, LoaderCircle, Plus, Trash2, Undo2, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ImagePlus, Plus, Trash2, Undo2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
+import type { Still } from '../api.ts';
+import { Banner, Button, IconButton, Spinner, Text, Tooltip } from './kit.ts';
 import { errorMessage } from './lib/runwayErrors.ts';
+import { stillTitle } from './lib/titles.ts';
+import { stillThumbUrl } from './lib/urls.ts';
 import { isUploadFailure, uploadRender } from './lib/uploadRender.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
-import { ChooserDialog } from './ui/ChooserDialog.tsx';
-import { ImageDropZone } from './ui/ImageDropZone.tsx';
-import { ImagePicker, type ImagePickerItem } from './ui/ImagePicker.tsx';
-import { Select } from './ui/Select.tsx';
-import { Text } from './ui/Text.tsx';
-import styles from './Studio.module.css';
+import { OptionSelect } from './parts/OptionSelect.tsx';
+import { StillPicker } from './parts/StillPicker.tsx';
+import styles from './parts/Frames.module.css';
 
 /**
  * One image for a clip: a library still (`stillId`, signed by the server) or
@@ -224,63 +223,13 @@ export function frameRef(img: FrameImage): { stillId: string } | { uploadUrl: st
 
 type ChooserTarget = { slot: Slot; title: string };
 
-/** Pick a finished still, or upload an image, for one slot. */
-function ImageChooser({
-  target,
-  items,
-  onStill,
-  onFile,
-  onClose,
-}: {
-  target: ChooserTarget | null;
-  items: readonly ImagePickerItem[];
-  onStill: (item: ImagePickerItem) => void;
-  onFile: (file: File) => void;
-  onClose: () => void;
-}) {
-  const [shown, setShown] = useState(12);
-  return (
-    <ChooserDialog isOpen={target !== null} title={target?.title ?? ''} onClose={onClose}>
-      {items.length === 0 ? (
-        <Text tone="muted" size="sm" as="p">
-          You have no finished stills yet. Upload an image instead.
-        </Text>
-      ) : (
-        <ImagePicker
-          label="Film still"
-          value={null}
-          items={items.slice(0, shown)}
-          onChange={(id) => {
-            const item = items.find((i) => i.id === id);
-            if (item) onStill(item);
-          }}
-        />
-      )}
-      {items.length > shown && (
-        <div>
-          <Button size="sm" variant="ghost" onPress={() => setShown((n) => n + 12)}>
-            Show {Math.min(12, items.length - shown)} more
-          </Button>
-        </div>
-      )}
-      <ImageDropZone onFile={onFile} actionLabel="Upload an image">
-        <div className={styles.chooserUpload}>
-          <ImagePlus size={18} aria-hidden />
-          <span>Or drop an image here (PNG, JPEG or WebP)</span>
-        </div>
-      </ImageDropZone>
-    </ChooserDialog>
-  );
-}
-
 function Thumb({ img, alt }: { img: FrameImage; alt: string }) {
   return (
-    <figure className={styles.frameThumb}>
-      <img className={styles.image} src={img.src} alt={alt} data-dimmed={img.uploading ? '' : undefined} />
+    <figure className={styles.thumb}>
+      <img src={img.src} alt={alt} data-dim={img.uploading ? '' : undefined} />
       {img.uploading && (
-        <span className={styles.frameBusy} role="status">
-          <LoaderCircle size={16} className={styles.castSpin} aria-hidden />
-          <span>Uploading…</span>
+        <span className={styles.busy} role="status">
+          <Spinner size="sm" shade="onMedia" aria-label="Uploading" />
         </span>
       )}
     </figure>
@@ -289,10 +238,36 @@ function Thumb({ img, alt }: { img: FrameImage; alt: string }) {
 
 function UploadError({ error, title }: { error: unknown; title: string }) {
   if (error == null) return null;
+  return <Banner status="error" title={title} description={errorMessage(error)} />;
+}
+
+/** One frame of the shot: its picture, its name, where it sits and what can be done with it. */
+function FrameRow({
+  img,
+  alt,
+  title,
+  name,
+  children,
+  locked = false,
+}: {
+  img: FrameImage;
+  alt: string;
+  title: string;
+  name: string;
+  children?: ReactNode;
+  locked?: boolean;
+}) {
   return (
-    <Alert tone="error" title={title}>
-      {errorMessage(error)}
-    </Alert>
+    <div className={styles.row} data-locked={locked || undefined}>
+      <Thumb img={img} alt={alt} />
+      <div className={styles.body}>
+        <Text type="label">{title}</Text>
+        <Text type="supporting" maxLines={1}>
+          {name}
+        </Text>
+        <div className={styles.rowActions}>{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -302,9 +277,10 @@ export type FramesFieldProps = {
   /** Most ordered frames the model takes (first + in between + last). */
   limit: number;
   seconds: number;
-  /** The still picked in step 1, the default first frame. */
+  /** The still picked for the shot, the default first frame. */
   picked: { src: string; name: string } | null;
-  items: readonly ImagePickerItem[];
+  /** Finished stills to choose a frame from. */
+  stills: readonly Still[];
   /** Models that take a last frame / frames in between, for the muted notes. */
   endModels: readonly string[];
   middleModels: readonly string[];
@@ -313,6 +289,8 @@ export type FramesFieldProps = {
   disabled: boolean;
 };
 
+const stillImage = (s: Still) => ({ id: s.id, src: stillThumbUrl(s.id), name: stillTitle(s) });
+
 /** First frame, optional in-between frames and an optional last frame. */
 export function FramesField({
   frames,
@@ -320,7 +298,7 @@ export function FramesField({
   limit,
   seconds,
   picked,
-  items,
+  stills,
   endModels,
   middleModels,
   lastBlockedByExtras,
@@ -334,9 +312,9 @@ export function FramesField({
   const dupes = duplicateMiddle(usedMiddle);
 
   const choose = (slot: Slot, title: string) => setChooser({ slot, title });
-  const pickStill = (item: ImagePickerItem) => {
+  const pickStill = (s: Still) => {
     if (!chooser) return;
-    frames.addStill(chooser.slot, { id: item.id, src: item.src, name: item.alt.split(', made with')[0] ?? 'Still' });
+    frames.addStill(chooser.slot, stillImage(s));
     setChooser(null);
   };
   const pickFile = (file: File) => {
@@ -350,196 +328,103 @@ export function FramesField({
   const lastLocked = !canLast || lastBlockedByExtras;
   const canAddMiddle = canMiddle && usedMiddle.length < maxMiddle;
   return (
-    <div className={styles.frameList}>
+    <div className={styles.list}>
       {!first && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {picked
-            ? 'The shot starts on the still you picked in step 1. Set frames only if you need them.'
-            : 'Pick a still in step 1; the shot starts on it.'}
+            ? 'The shot starts on the still you picked. Set frames only if you need them.'
+            : 'Pick a still first; the shot starts on it.'}
         </Text>
       )}
 
       {first && (
-        <div className={styles.frameRow}>
-          <Thumb img={first} alt={`First frame: ${first.name}`} />
-          <div className={styles.frameBody}>
-            <Text as="span" size="sm" className={styles.frameTitle}>
-              First frame
-            </Text>
-            <Text tone="muted" size="sm" as="p" className={styles.frameName}>
-              {first.name}
-            </Text>
-            <div className={styles.frameActions}>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<ImagePlus size={14} />}
-                disabled={disabled}
-                onPress={() => choose('first', 'Choose the first frame')}
-              >
-                Change
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<Undo2 size={14} />}
-                disabled={disabled}
-                onPress={() => frames.remove(first.key)}
-              >
-                Use picked still
-              </Button>
-            </div>
-          </div>
-        </div>
+        <FrameRow img={first} alt={`First frame: ${first.name}`} title="First frame" name={first.name}>
+          <Button label="Change" size="sm" variant="ghost" icon={<ImagePlus size={14} />} isDisabled={disabled} onClick={() => choose('first', 'Choose the first frame')} />
+          <Button label="Use picked still" size="sm" variant="ghost" icon={<Undo2 size={14} />} isDisabled={disabled} onClick={() => frames.remove(first.key)} />
+        </FrameRow>
       )}
 
       {usedMiddle.map((m, i) => {
         const duplicate = dupes.has(m.key);
         return (
-        <div className={styles.frameRow} key={m.key}>
-          <Thumb img={m} alt={`Frame ${i + 2}: ${m.name}`} />
-          <div className={styles.frameBody}>
-            <Text as="span" size="sm" className={styles.frameTitle}>
-              Frame {i + 2} of the shot
-            </Text>
-            <Text tone="muted" size="sm" as="p" className={styles.frameName}>
-              {m.name}
-            </Text>
-            <div className={styles.framePosition}>
-              <Select
+          <FrameRow key={m.key} img={m} alt={`Frame ${i + 2}: ${m.name}`} title={`Frame ${i + 2} of the shot`} name={m.name}>
+            <div className={styles.position}>
+              <OptionSelect
                 label={`Frame ${i + 2} reached at`}
+                labelHidden
+                size="sm"
+                showHint={false}
                 options={POSITIONS.map((p) => ({
                   id: String(p),
-                  name: `${((p / 10) * seconds).toFixed(1)} s`,
+                  name: `At ${((p / 10) * seconds).toFixed(1)} s`,
                 }))}
                 value={String(Math.min(9, Math.max(1, Math.round(m.at * 10))))}
                 onChange={(id) => frames.setAt(m.key, Number(id) / 10)}
                 disabled={disabled}
-                showHint={false}
               />
             </div>
+            <IconButton label={`Remove frame ${i + 2}`} tooltip="Remove" size="sm" variant="ghost" icon={<Trash2 size={14} />} isDisabled={disabled} onClick={() => frames.remove(m.key)} />
             {duplicate && (
-              <p className={styles.frameDuplicate} role="alert">
+              <p className={styles.problem} role="alert">
                 Another frame sits at the same point. Move one of them to continue.
               </p>
             )}
-            <div className={styles.frameActions}>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<Trash2 size={14} />}
-                disabled={disabled}
-                aria-label={`Remove frame ${i + 2}`}
-                onPress={() => frames.remove(m.key)}
-              >
-                Remove
-              </Button>
-            </div>
-          </div>
-        </div>
+          </FrameRow>
         );
       })}
 
       {last && (
-        <div className={styles.frameRow} data-locked={lastLocked ? '' : undefined}>
-          <Thumb img={last} alt={`Last frame: ${last.name}`} />
-          <div className={styles.frameBody}>
-            <Text as="span" size="sm" className={styles.frameTitle}>
-              Last frame
-            </Text>
-            <Text tone="muted" size="sm" as="p" className={styles.frameName}>
-              {canLast ? last.name : 'Not sent with this model'}
-            </Text>
-            <div className={styles.frameActions}>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<ImagePlus size={14} />}
-                disabled={disabled || lastLocked}
-                onPress={() => choose('last', 'Choose the last frame')}
-              >
-                Change
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<X size={14} />}
-                disabled={disabled}
-                aria-label="Remove the last frame"
-                onPress={() => frames.remove(last.key)}
-              >
-                Remove
-              </Button>
-            </div>
-          </div>
-        </div>
+        <FrameRow img={last} alt={`Last frame: ${last.name}`} title="Last frame" name={canLast ? last.name : 'Not sent with this model'} locked={lastLocked}>
+          <Button label="Change" size="sm" variant="ghost" icon={<ImagePlus size={14} />} isDisabled={disabled || lastLocked} onClick={() => choose('last', 'Choose the last frame')} />
+          <IconButton label="Remove the last frame" tooltip="Remove" size="sm" variant="ghost" icon={<X size={14} />} isDisabled={disabled} onClick={() => frames.remove(last.key)} />
+        </FrameRow>
       )}
 
       {(!first || canAddMiddle || (!last && !lastLocked)) && (
-        <div className={styles.frameOptions}>
+        <div className={styles.options}>
           {!first && (
-            <Button
-              size="sm"
-              icon={<Plus size={14} />}
-              disabled={disabled}
-              onPress={() => choose('first', 'Choose the first frame')}
-            >
-              First frame
-            </Button>
+            <Button label="First frame" size="sm" icon={<Plus size={14} />} isDisabled={disabled} onClick={() => choose('first', 'Choose the first frame')} />
           )}
           {canAddMiddle && (
-            <Button
-              size="sm"
-              icon={<Plus size={14} />}
-              disabled={disabled}
-              onPress={() => choose('middle', 'Add a frame in between')}
-            >
-              Frame in between
-            </Button>
+            <Button label="Frame in between" size="sm" icon={<Plus size={14} />} isDisabled={disabled} onClick={() => choose('middle', 'Add a frame in between')} />
           )}
           {!last && !lastLocked && (
-            <Button
-              size="sm"
-              icon={<Plus size={14} />}
-              disabled={disabled}
-              onPress={() => choose('last', 'Choose the last frame')}
-            >
-              Last frame
-            </Button>
+            <Button label="Last frame" size="sm" icon={<Plus size={14} />} isDisabled={disabled} onClick={() => choose('last', 'Choose the last frame')} />
           )}
         </div>
       )}
 
       {!canLast && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {modelName} starts on the first frame only and can&rsquo;t take a last frame
           {frames.last ? ', so your last frame is kept but not sent' : ''}. Models with a last frame:{' '}
           {endModels.join(', ')}.
         </Text>
       )}
       {canLast && !canMiddle && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {modelName} takes a first and a last frame
           {middleModels.length > 0 ? `. Frames in between work with ${middleModels.join(', ')}.` : '.'}
           {frames.middle.length > 0 ? ' Your frames in between are kept but not sent.' : ''}
         </Text>
       )}
       {canLast && lastBlockedByExtras && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {modelName} can use a last frame or extra images, not both. Remove the extra images to add a last frame.
         </Text>
       )}
       {canMiddle && frames.middle.length > maxMiddle && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {modelName} takes {maxMiddle} frames in between; the others are kept but not sent.
         </Text>
       )}
 
       <UploadError error={frames.frameError} title="That image didn't upload" />
-      <ImageChooser
-        target={chooser}
-        items={items}
-        onStill={pickStill}
+      <StillPicker
+        isOpen={chooser !== null}
+        title={chooser?.title ?? ''}
+        stills={stills}
+        onPick={pickStill}
         onFile={pickFile}
         onClose={() => setChooser(null)}
       />
@@ -554,7 +439,7 @@ export type RefsFieldProps = {
   modelName: string;
   /** Extra images the model takes; 0 = none. */
   limit: number;
-  items: readonly ImagePickerItem[];
+  stills: readonly Still[];
   extraModels: readonly string[];
   /** Why adding is off for a model that does take extras (a last frame is set). */
   blockedReason?: string | undefined;
@@ -563,12 +448,12 @@ export type RefsFieldProps = {
   onInsert: (handle: string) => void;
 };
 
-/** The extra images, each named @img1, @img2 … in order. */
+/** The extra images, each named @img1, @img2 and so on, in order. */
 export function RefsField({
   frames,
   modelName,
   limit,
-  items,
+  stills,
   extraModels,
   blockedReason,
   disabled,
@@ -579,36 +464,31 @@ export function RefsField({
   const full = frames.refs.length >= limit;
   const locked = disabled || !supported || blockedReason !== undefined;
   return (
-    <div className={styles.frameList}>
+    <div className={styles.list}>
       {frames.refs.length === 0 ? (
-        <Text tone="muted" size="sm" as="p">
+        <Text type="supporting" as="p">
           {supported
             ? 'No extra images yet. Add a bench, a person, a material or any detail, then name it in your direction.'
             : `${modelName} can't take extra images. Pick ${extraModels.join(', ')} to use them.`}
         </Text>
       ) : (
-        <div className={styles.refGrid}>
+        <div className={styles.refs}>
           {frames.refs.map((r, i) => (
-            <figure className={styles.refCard} key={r.key}>
+            <figure className={styles.ref} key={r.key}>
               <Thumb img={r} alt={`@img${i + 1}: ${r.name}`} />
               <div className={styles.refFoot}>
-                <button
-                  type="button"
-                  className={styles.handleChip}
-                  disabled={disabled}
-                  aria-label={`Insert @img${i + 1} into the direction`}
-                  onClick={() => onInsert(`@img${i + 1}`)}
-                >
-                  @img{i + 1}
-                </button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<X size={14} />}
-                  disabled={disabled}
-                  aria-label={`Remove @img${i + 1}`}
-                  onPress={() => frames.remove(r.key)}
-                />
+                <Tooltip content="Put it in the direction">
+                  <button
+                    type="button"
+                    className={styles.handle}
+                    disabled={disabled}
+                    aria-label={`Insert @img${i + 1} into the direction`}
+                    onClick={() => onInsert(`@img${i + 1}`)}
+                  >
+                    @img{i + 1}
+                  </button>
+                </Tooltip>
+                <IconButton label={`Remove @img${i + 1}`} tooltip="Remove" size="sm" variant="ghost" icon={<X size={14} />} isDisabled={disabled} onClick={() => frames.remove(r.key)} />
               </div>
             </figure>
           ))}
@@ -616,36 +496,36 @@ export function RefsField({
       )}
       <div>
         <Button
+          label={full && supported ? `All ${limit} added` : 'Add an image'}
           size="sm"
           icon={<ImagePlus size={14} />}
-          disabled={locked || full}
-          onPress={() => setOpen(true)}
-        >
-          {full && supported ? `All ${limit} added` : 'Add an image'}
-        </Button>
+          isDisabled={locked || full}
+          onClick={() => setOpen(true)}
+        />
       </div>
       {!supported && frames.refs.length > 0 && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {modelName} can&rsquo;t take extra images, so these are kept but not sent. Models that can:{' '}
           {extraModels.join(', ')}.
         </Text>
       )}
       {supported && frames.refs.length > 0 && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           Removing an image renumbers the rest. {modelName} takes up to {limit}.
         </Text>
       )}
       {blockedReason && (
-        <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
+        <Text type="supporting" as="p">
           {blockedReason}
         </Text>
       )}
       <UploadError error={frames.refError} title="That image didn't upload" />
-      <ImageChooser
-        target={open ? { slot: 'ref', title: `Add @img${frames.refs.length + 1}` } : null}
-        items={items}
-        onStill={(item) => {
-          frames.addStill('ref', { id: item.id, src: item.src, name: item.alt.split(', made with')[0] ?? 'Still' });
+      <StillPicker
+        isOpen={open}
+        title={`Add @img${frames.refs.length + 1}`}
+        stills={stills}
+        onPick={(s) => {
+          frames.addStill('ref', stillImage(s));
           setOpen(false);
         }}
         onFile={(file) => {

@@ -43,3 +43,19 @@ test('readable: a zod list of issues reads as its first message; anything else a
   assert.equal(words.readable(''), 'That did not go through. Try again.');
   assert.equal(words.readable(undefined), 'That did not go through. Try again.');
 });
+
+test('the project total is worded as an estimate of what was sent, never as an exact spend', () => {
+  assert.equal(words.sentWords(852), 'About $8.52');
+  assert.equal(words.sentWords(0), 'About $0.00');
+  assert.equal(words.SENT_CAPTION, 'sent to be made for this project');
+  assert.equal(words.SENT_LABEL, 'Sent to be made');
+  for (const w of [words.SENT_CAPTION, words.SENT_LABEL]) assert.doesNotMatch(w, /spent/i);
+});
+
+test('the cost meter says what is left, and asks for renders on an empty project', () => {
+  assert.equal(words.leftToFinishWords(0, 0, undefined), 'Add renders to see what finishing costs');
+  assert.equal(words.leftToFinishWords(12, 0, undefined), 'Nothing left to pay for');
+  assert.equal(words.leftToFinishWords(12, 3, undefined), 'Working out what is left…');
+  assert.equal(words.leftToFinishWords(12, 3, { cents: null }), words.LEFT_UNKNOWN);
+  assert.equal(words.leftToFinishWords(12, 3, { cents: 242 }), 'About $2.42 to finish');
+});

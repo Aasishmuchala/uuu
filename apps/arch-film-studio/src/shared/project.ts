@@ -202,6 +202,8 @@ export interface QueuedJob {
   claimId?: string | undefined;
   /** 0–1 while running, when Runway reports it. */
   progress?: number | undefined;
+  /** What the door said this job costs, in US cents, set when the door accepts it. */
+  cents?: number | null | undefined;
 }
 
 export interface ImageAnalysis {
@@ -390,6 +392,17 @@ export interface Project {
   images: ProjectImage[];
   storyboard?: Storyboard | undefined;
   film?: FilmRun | undefined;
+  /**
+   * What the door has accepted for this project so far, in US cents, by kind.
+   * Counted once when a job's id is saved; it never goes down.
+   */
+  spent?: { enhanceCents: number; masterCents: number; clipCents: number } | undefined;
+}
+
+/** Everything the door has accepted for a project, in US cents. */
+export function projectSpentCents(p: Pick<Project, 'spent'>): number {
+  const s = p.spent;
+  return s ? s.enhanceCents + s.masterCents + s.clipCents : 0;
 }
 
 export interface ProjectSummary {
@@ -399,6 +412,10 @@ export interface ProjectSummary {
   imageCount: number;
   masterCount: number;
   thumbKeys: string[];
+  /** Spent on this project so far, in US cents. */
+  spentCents: number;
+  /** A finished film exists. */
+  filmReady: boolean;
 }
 
 export const IMAGE_EXTENSIONS = ['jpg', 'png', 'webp'] as const;

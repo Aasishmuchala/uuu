@@ -121,8 +121,6 @@ export type DoorFields = {
   seconds?: number | undefined;
   /** The kept picture sent as the job's one input. */
   inputKey?: string | undefined;
-  /** What the door said it would cost, from its 202. */
-  cents?: number | null | undefined;
 };
 export type DoorJob = QueuedJob & DoorFields & { createdAt: string; prompt?: string };
 
@@ -512,9 +510,16 @@ export function createPipeline(deps: PipelineDeps) {
     if ('job' in r) {
       const taskId = r.job;
       const cents = r.cents;
-      await patchJob(projectId, ref, (j) => j.claimId === claimId, (j) => {
+      await patchJob(projectId, ref, (j) => j.claimId === claimId, (j, d) => {
         j.taskId = taskId;
         j.cents = cents;
+        // Counted in the same write as the id, so a job is counted once.
+        if (typeof cents === 'number' && Number.isFinite(cents) && cents > 0) {
+          const spent = (d.spent ??= { enhanceCents: 0, masterCents: 0, clipCents: 0 });
+          if (ref.kind === 'enhance') spent.enhanceCents += cents;
+          else if (ref.kind === 'master') spent.masterCents += cents;
+          else spent.clipCents += cents;
+        }
       });
       return 'next';
     }

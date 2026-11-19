@@ -68,6 +68,7 @@ let door;
 let relay;
 let fakeDir;
 let dataDir;       // the app's data folder in the temp state
+let repoReady;     // the repo's READY as it was before the tests (its bytes, or null when absent)
 let projectId;
 let image;
 const ids = {};
@@ -243,6 +244,7 @@ const dataFile = (key) => join(dataDir, "objects", key);
 
 before(async () => {
   if (SKIP) return;
+  repoReady = existsSync(join(REPO_APP, "READY")) ? readFileSync(join(REPO_APP, "READY")) : null;
   root = realpathSync(mkdtempSync("/private/tmp/uuu-afs-"));
   const eng = join(root, "engine");
   mkdirSync(join(eng, "apps"), { recursive: true });
@@ -575,8 +577,8 @@ c.on("connect", () => done("connected")); c.on("error", (e) => done(e.code)); se
   assert.equal(calls.filter((c) => c.part === "door").length, doorCallsBefore, "nothing reached the door from the probe");
 });
 
-test("nothing of the live state was written, and the repo's app has no READY", { skip: SKIP }, () => {
-  assert.equal(existsSync(join(REPO_APP, "READY")), false);
+test("nothing of the live state was written, and the repo's READY was not touched", { skip: SKIP }, () => {
+  assert.deepEqual(existsSync(join(REPO_APP, "READY")) ? readFileSync(join(REPO_APP, "READY")) : null, repoReady);
   assert.ok(realpathSync(dataDir).startsWith(root + "/"));
   assert.ok(readdirSync(dataDir).length > 0, "the app wrote into the temp data folder");
   assert.equal(host.app(SLUG).state, "on", "the app stayed up throughout");

@@ -1,0 +1,1 @@
+var e="data-astryx-reduced-motion";function r(t){return t?{[e]:""}:{}}function n(t,o){o?t.setAttribute(e,""):t.removeAttribute(e)}function u(t){return t?.closest?.(`[${e}]`)!=null}export{r as a,n as b,u as c};

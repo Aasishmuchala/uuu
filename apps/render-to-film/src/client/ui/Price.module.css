@@ -1,15 +1,12 @@
-/* The price beside a spending button: quiet, tabular, never louder than the
-   button it belongs to. */
+/* The price before a spending button: the same size of text as the button, quiet, tabular,
+   never louder than the button it belongs to. Kit tokens only. */
 .price {
   flex: none;
-  min-width: 5.5em;
-  color: var(--bay-text-3);
-  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-body-size);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
   white-space: nowrap;
-  text-align: right;
-  transition: opacity var(--bay-dur) var(--bay-ease);
+  transition: opacity 140ms ease;
 }
 
 /* While the options are still moving the last price fades back. */
@@ -17,23 +14,23 @@
   opacity: 0.45;
 }
 
-/* A button and its price on one line. A full-width button (the action bar's)
-   gives up just enough room; a small one stays its own size. */
+/* The price, then the button, on one line; a wide button takes the rest of the line. */
 .buy {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--spacing-3);
+  min-width: 0;
 }
 
-.buy > :first-child {
+.buy > :last-child {
   min-width: 0;
 }
 
 /* Why the button is held. */
 .note {
   margin: 0;
-  color: var(--bay-text-3);
-  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-supporting-size);
   line-height: 1.5;
 }
 

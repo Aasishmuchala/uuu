@@ -15,8 +15,8 @@
   display: inline-flex;
   padding: 2px;
   gap: 2px;
-  border-radius: var(--bay-r-md);
-  background: var(--bay-bg-sunken);
+  border-radius: var(--radius-element);
+  background: var(--studio-scrim);
 }
 
 .segItem {
@@ -28,29 +28,28 @@
   height: 26px;
   padding: 0 9px;
   border: 0;
-  border-radius: var(--bay-r-sm);
+  border-radius: var(--radius-inner);
   background: transparent;
-  color: var(--bay-text-2);
+  color: var(--color-text-secondary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-supporting-size);
   font-weight: 500;
   cursor: pointer;
   outline: none;
-  transition: background var(--bay-dur-fast) var(--bay-ease);
 }
 
 .segItem[data-hovered] {
-  color: var(--bay-text);
+  color: var(--color-text-primary);
 }
 
 .segItem[data-selected] {
-  background: var(--bay-bg-surface);
-  color: var(--bay-accent-fg);
-  box-shadow: 0 0 0 1px var(--bay-border-hair);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 0 1px var(--color-border);
 }
 
 .segItem[data-focus-visible] {
-  box-shadow: 0 0 0 2px var(--bay-border-focus);
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .segItem[data-disabled] {
@@ -83,9 +82,9 @@
   position: relative;
   width: 100%;
   overflow: hidden;
-  border-radius: var(--bay-r-md);
-  background: var(--bay-bg-sunken);
-  box-shadow: 0 0 0 2px var(--bay-accent);
+  border-radius: var(--radius-element);
+  background: var(--studio-scrim);
+  box-shadow: 0 0 0 2px var(--color-accent);
   touch-action: none;
   user-select: none;
 }
@@ -104,6 +103,7 @@
 
 .canvas,
 .overlayCanvas {
+  color: var(--color-accent);
   position: absolute;
   inset: 0;
   width: 100%;
@@ -125,9 +125,9 @@
 
 .cursor {
   position: absolute;
-  border: 1.5px solid #fff;
+  border: 1.5px solid var(--color-on-dark);
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(30, 27, 24, 0.6);
+  box-shadow: 0 0 0 1px var(--studio-scrim-strong);
   pointer-events: none;
 }
 
@@ -151,9 +151,9 @@
 
 .status {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-supporting-size);
   line-height: 1.45;
-  color: var(--bay-text-3);
+  color: var(--color-text-secondary);
 }
 
 .overlay {
@@ -163,11 +163,11 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(20, 17, 14, 0.86);
+  background: var(--studio-scrim-strong);
 }
 
 .overlay[data-entering] {
-  animation: fade var(--bay-dur) var(--bay-ease);
+  animation: fade 140ms ease;
 }
 
 .modal {
@@ -182,9 +182,9 @@
   gap: 10px;
   padding: 24px;
   max-height: calc(100vh - 48px);
-  border-radius: var(--bay-r-lg);
-  background: var(--bay-bg-surface);
-  box-shadow: var(--bay-shadow-pop);
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  box-shadow: var(--shadow-high);
   outline: none;
 }
 

@@ -63,7 +63,7 @@ export type PriceProps = {
   className?: string | undefined;
 };
 
-/** "About $0.40" beside a spending button. */
+/** "About $0.40", the words before a spending button. */
 export function Price({ items, className }: PriceProps) {
   const spend = useSpend(items);
   return (
@@ -88,9 +88,9 @@ export function SpendNote({ items }: { items: readonly PriceItem[] }) {
 }
 
 /**
- * A spending button with its price at its right edge and, under it, why it is
- * held while it is. Wrap the `<Button>`; give the same `items` to `useSpend`
- * for the button's `disabled`.
+ * A spending button with its price first, on one line, the same size of text (PLAN-APPS-ASTRYX,
+ * "The shared look"), and under them why the button is held while it is. Wrap the button; give
+ * the same `items` to `useSpend` for the button's `disabled`.
  */
 export function Buy({
   items,
@@ -106,13 +106,13 @@ export function Buy({
   return (
     <>
       <div className={styles.buy}>
-        {children}
         <span
           className={[styles.price, spend.loading ? styles.loading : ''].filter(Boolean).join(' ')}
           aria-live="polite"
         >
           {spend.loading && spend.cents === null ? '' : spend.words}
         </span>
+        {children}
       </div>
       {note && spend.blocked && spend.why && (
         <p className={styles.note} role="status">

@@ -1,0 +1,91 @@
+/* The workbench: controls | handle | stage over the take strip. Fills the screen's height. */
+.bench {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 0;
+  background: var(--color-background-body);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-5) var(--spacing-5) var(--spacing-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+.foot {
+  flex: none;
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stageRow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.side {
+  flex: none;
+  width: 360px;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.strip {
+  flex: none;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: var(--spacing-6);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-1);
+}

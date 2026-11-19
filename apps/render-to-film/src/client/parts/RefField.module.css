@@ -1,0 +1,78 @@
+/* An extra reference picture in the controls (cast sheet, lighting): small, beside its name. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 64px;
+  padding: var(--spacing-3) 140px var(--spacing-3) var(--spacing-3);
+  border: 1px dashed var(--color-border-emphasized);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+}
+
+.empty[data-disabled] {
+  opacity: 0.6;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--spacing-3);
+  align-items: center;
+}
+
+.thumb {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: var(--studio-scrim);
+  outline: 1px solid var(--color-border);
+  outline-offset: -1px;
+}
+
+.thumb > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumb > img[data-dim] {
+  opacity: 0.45;
+}
+
+.state {
+  position: absolute;
+  left: var(--spacing-1-5);
+  bottom: var(--spacing-1-5);
+  display: inline-flex;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}

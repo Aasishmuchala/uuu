@@ -1,0 +1,117 @@
+/* The stage: one step darker than the page, the picture centred at its own ratio. */
+.stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--studio-scrim);
+}
+
+.toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  min-height: 52px;
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: none;
+}
+
+.canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: center;
+  padding: var(--spacing-6);
+}
+
+.below {
+  flex: none;
+  padding: 0 var(--spacing-6) var(--spacing-4);
+}
+
+.frame {
+  position: relative;
+  width: min(100cqw - 2 * var(--spacing-6), (100cqh - 2 * var(--spacing-6)) * var(--r));
+  aspect-ratio: var(--r);
+  overflow: hidden;
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+}
+
+.frame > img,
+.frame > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.frame[data-dim] > img {
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+}
+
+.working {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--spacing-6) var(--spacing-5) var(--spacing-4);
+  background: var(--studio-scrim-strong);
+  color: var(--color-on-dark);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.workingText {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.clock {
+  font-size: var(--font-size-sm);
+  opacity: 0.8;
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-8);
+  text-align: center;
+}
+
+.emptyAction {
+  margin-top: var(--spacing-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-dim] > img {
+    transition: none;
+  }
+}

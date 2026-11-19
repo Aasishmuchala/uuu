@@ -7,6 +7,7 @@
  */
 import {
   approvedEnhancement,
+  type Project,
   type ProjectImage,
   type Shot,
 } from '../../shared/project.ts';
@@ -63,8 +64,50 @@ export function masterCost(image: ProjectImage): MasterCost | null {
 }
 
 /** A clip of `shot`: its seconds at the model's rate. */
+/** Why a clip button is held while a shot's new length is not yet saved. */
+export const SAVING_LENGTH = 'Saving the new length.';
+
+/**
+ * A shot's "Make clip" is priced from its saved length. While a change of
+ * length is on its way (the update is in flight, or the field shows another
+ * length than the saved shot), a press would make the clip at a length the
+ * price did not cover, so the button is held. REVIEW-APPS-ASTRYX finding 2.
+ */
+export function lengthHold(updating: boolean, draftSeconds: number, savedSeconds: number): string | null {
+  return updating || draftSeconds !== savedSeconds ? SAVING_LENGTH : null;
+}
+
 export function shotAsk(shot: Pick<Shot, 'durationSeconds'>): QuoteAsk {
   return { model: SHOT_MODEL, kind: 'image_to_video', seconds: shot.durationSeconds };
+}
+
+/** Every ask this project still has to pay for to be finished, by kind. */
+export function remainingAsks(
+  p: Project,
+  model: EnhanceModel
+): { enhance: QuoteAsk[]; masters: QuoteAsk[]; clips: QuoteAsk[] } {
+  const held = (j: { state: string } | undefined) => j?.state === 'queued' || j?.state === 'running' || j?.state === 'succeeded';
+  const busy = (j: { state: string } | undefined) => j?.state === 'queued' || j?.state === 'running';
+  const enhance: QuoteAsk[] = [];
+  const masters: QuoteAsk[] = [];
+  const clips: QuoteAsk[] = [];
+  for (const image of p.images) {
+    if (!image.enhancements.some(held)) enhance.push(enhanceAsk(image, model));
+    if (image.master?.locked || busy(image.master)) continue;
+    const cost = masterCost(image);
+    if (cost && !cost.free) masters.push(cost.ask);
+  }
+  for (const shot of p.storyboard?.shots ?? []) {
+    if (!held(shot.video)) clips.push(shotAsk(shot));
+  }
+  return { enhance, masters, clips };
+}
+
+/** `items` in runs of at most `size`, in order. */
+export function chunk<T>(items: readonly T[], size: number = MAX_ASKS): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }
 
 /** Equal asks joined with their count, in first-seen order. More than `MAX_ASKS` groups cannot be priced in one call. */

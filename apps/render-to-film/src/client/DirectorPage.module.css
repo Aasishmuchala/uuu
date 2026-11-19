@@ -1,367 +1,354 @@
-/* The Director tab's own pieces; the layout and stage come from Studio.module.css. */
+/* Director: the brief, the board of frames on the stage, one frame open, and the film. */
 
-.dropEmpty {
+.pair {
   display: grid;
-  place-items: center;
-  gap: 8px;
-  min-height: 140px;
-  padding: 20px 20px 56px;
-  border: 1px dashed var(--bay-border-strong);
-  border-radius: var(--bay-r-md);
-  background: var(--bay-bg-subtle);
-  color: var(--bay-text-3);
-  text-align: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-3);
 }
 
-/* The uploaded set: small 16:10 tiles, three or four to a row. */
+.gap {
+  width: var(--spacing-2);
+}
+
+.drop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  min-height: 88px;
+  padding: var(--spacing-4) var(--spacing-4) 52px;
+  border: 1px dashed var(--color-border-emphasized);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+}
+
+/* The project images: a tight contact sheet of small frames, each whole at its own shape. */
 .thumbs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 8px;
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--spacing-2);
 }
 
 .thumb {
   position: relative;
-  aspect-ratio: 16 / 10;
-  border-radius: var(--bay-r-sm);
-  background: var(--bay-bg-sunken);
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radius-inner);
   overflow: hidden;
+  background: var(--studio-scrim);
+  outline: 1px solid var(--color-border);
+  outline-offset: -1px;
 }
 
-.thumbImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: opacity var(--bay-dur) var(--bay-ease);
-}
-
-.thumbImg[data-dimmed] {
-  opacity: 0.45;
-}
-
-.thumbState {
+.thumb > img {
   position: absolute;
-  inset: auto 0 0;
-  padding: 3px 6px;
-  font-size: 11px;
-  color: var(--bay-text-2);
-  background: var(--bay-bg-surface);
-}
-
-.thumbRemove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: var(--bay-bg-surface);
-}
-
-.uploadError {
-  min-width: 0;
-}
-
-.boardHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 24px;
-  margin-bottom: 24px;
-}
-
-.boardHead > p {
-  max-width: 64ch;
-}
-
-/* The storyboard: frames in story order, as many columns as fit. */
-.frames {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
-  gap: 36px 28px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.cardFrame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  border-radius: var(--bay-r-md);
-  background: var(--bay-stage-frame);
-  box-shadow: 0 0 0 1px rgba(246, 241, 233, 0.06);
-  overflow: hidden;
-}
-
-.cardFrame > * {
-  grid-area: 1 / 1;
-}
-
-/* The source image reads as a sketch until its frame is shot. */
-.source {
-  opacity: 0.6;
-}
-
-.sourceChip {
-  align-self: end;
-  justify-self: start;
-  margin: 8px;
-  padding: 2px 8px;
-  border-radius: var(--bay-r-pill);
-  font-size: 11px;
-  color: var(--bay-text-2);
-  background: rgba(30, 27, 24, 0.7);
-}
-
-.frameButton {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: zoom-in;
-}
-
-.frameButton:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: -2px;
-}
-
-.cardText {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.cardTitle {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--bay-text);
-}
-
-.cardNo {
-  font-variant-numeric: tabular-nums;
-  color: var(--bay-accent-fg);
-}
-
-.space {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--bay-text-3);
-}
-
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.cardActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.saveState {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--bay-text-3);
-}
-
-.saved {
-  margin-top: 32px;
-  text-align: center;
-}
-
-.retry {
-  display: flex;
-  justify-content: center;
-  margin-top: 12px;
-}
-
-.pollError {
-  margin-top: 16px;
-}
-
-/* A done frame chosen for the film carries an accent ring. */
-.cardFrame[data-chosen] {
-  box-shadow: 0 0 0 2px var(--bay-accent);
-}
-
-/* ---- The big-screen viewer (FullscreenDialog). */
-.viewerPicture {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: min(100%, calc(var(--fit-h, 70vh) * var(--ar, 16 / 9)));
-  border-radius: var(--bay-r-md);
-  background: var(--bay-stage-frame);
-  overflow: hidden;
-}
-
-.viewerPicture > * {
-  grid-area: 1 / 1;
-}
-
-.viewerPicture > .viewerCompare {
-  width: 100%;
-  border-radius: 0;
-}
-
-.viewerImage {
-  display: block;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.viewerNote {
-  width: min(440px, 90%);
-  text-align: center;
+.thumb > img[data-dim] {
+  opacity: 0.45;
 }
 
-.viewerCaption {
-  margin-top: 12px;
-  text-align: center;
+.thumbState {
+  position: absolute;
+  left: var(--spacing-1-5);
+  bottom: var(--spacing-1-5);
+  display: inline-flex;
 }
 
-.viewerAside {
+.thumbRemove {
+  position: absolute;
+  top: var(--spacing-1);
+  right: var(--spacing-1);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.thumb:hover .thumbRemove,
+.thumbRemove:focus-within {
+  opacity: 1;
+}
+
+/* The stage's scrolling content (the board, the film) inside the stage canvas. */
+.scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: var(--spacing-6);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--spacing-5);
 }
 
-.viewerTakes {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.viewerShoot {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* ---- The film step: chosen frames made into clips. */
-.film {
-  margin-top: 48px;
-  padding-top: 32px;
-  border-top: 1px solid var(--bay-border-hair);
-}
-
-.filmGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
-  gap: 32px;
-  align-items: start;
-}
-
-@media (max-width: 1200px) {
-  .filmGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.filmControls {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.filmRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-}
-
-.filmPick {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.filmAction {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.clips {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-  gap: 24px 20px;
+.board {
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--spacing-6) var(--spacing-4);
 }
 
-.clip {
+.card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-2);
+}
+
+.cardFrame {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: var(--color-background-body);
+  outline: 1px solid var(--color-border);
+  outline-offset: -1px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cardFrame > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 160ms ease;
+}
+
+.cardFrame > img[data-dim] {
+  opacity: 0.45;
+}
+
+.cardFrame[data-skeleton] {
+  cursor: default;
+}
+
+.cardFrame:hover {
+  outline-color: var(--color-border-emphasized);
+}
+
+.cardFrame:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.sourceTag {
+  position: absolute;
+  left: var(--spacing-2);
+  top: var(--spacing-2);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  background: var(--studio-scrim-strong);
+  color: var(--color-on-dark);
+  font-size: var(--font-size-sm);
+}
+
+.inFilm {
+  position: absolute;
+  right: var(--spacing-2);
+  bottom: var(--spacing-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  background: var(--studio-scrim-strong);
+  color: var(--color-on-dark);
+  font-size: var(--font-size-sm);
+}
+
+.cardBar {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  overflow: hidden;
+  background: var(--studio-scrim-strong);
+}
+
+.cardBar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: var(--color-accent);
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
   min-width: 0;
 }
 
-.clipFrame {
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.space {
+  margin-left: auto;
+  flex: none;
+}
+
+/* The film card: a quiet mosaic of the chosen frames. */
+.filmFrame {
+  background: var(--studio-scrim);
+}
+
+.mosaic {
+  position: absolute;
+  inset: 0;
   display: grid;
-  place-items: center;
-  border-radius: var(--bay-r-md);
-  background: var(--bay-stage-frame);
-  overflow: hidden;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 2px;
 }
 
-.clipFrame > * {
-  grid-area: 1 / 1;
+.mosaic[data-count='1'] {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
 }
 
-.clipVideo {
-  display: block;
+.mosaic[data-count='2'] {
+  grid-template-columns: 1fr;
+}
+
+.mosaic[data-count='3'] > img:first-child {
+  grid-column: 1 / -1;
+}
+
+.mosaic > img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  background: var(--bay-stage-frame);
+  object-fit: contain;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-background-body);
 }
 
-.clipTitle {
+.filmEmpty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-secondary);
+}
+
+.emptyBoard {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+
+/* One frame open: its place in the story at the head of the controls. */
+.frameHead {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+}
+
+.saveState {
+  margin-left: var(--spacing-2);
+}
+
+/* The film: each chosen frame's clip, at its own shape, in story order. */
+.clips {
+  list-style: none;
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--bay-text);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-6) var(--spacing-4);
 }
 
-.clipMeta {
+.clip {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.clipFrame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--r);
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: var(--color-background-body);
+}
+
+.clipFrame > img,
+.clipFrame > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.clipFrame > img[data-dim] {
+  opacity: 0.45;
+}
+
+.clipHead {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.clipEnd {
   margin-left: auto;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--bay-text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: none;
 }
 
-@media (max-width: 680px) {
-  .filmRow {
-    grid-template-columns: 1fr;
+.stageCol {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pollError {
+  padding: 0 var(--spacing-6) var(--spacing-4);
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardBar::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+  .thumbRemove,
+  .cardFrame > img {
+    transition: none;
   }
 }

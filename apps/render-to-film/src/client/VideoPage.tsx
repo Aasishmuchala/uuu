@@ -1,11 +1,9 @@
-import { Clapperboard, Download, ListX, Maximize2, Trash2 } from 'lucide-react';
+import { Clapperboard, Download, ImagePlus, Library, ListX, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { inferRouterOutputs } from '@trpc/server';
 
-import type { AppRouterType, Clip, Still } from '../api.ts';
-import { locationName } from '../location.ts';
-import { litFromReference, LOOKS, lookLabel } from '../looks.ts';
+import type { AppRouterType, Still } from '../api.ts';
 import {
   defaultVideoSeconds,
   snapVideoSeconds,
@@ -16,9 +14,6 @@ import {
   videoModelsWith,
   extraImageHandles,
   defaultVideoResolution,
-  imageModelName,
-  imageResolutionName,
-  upscalerName,
   motionLabel,
   MOTIONS,
   MOVE_STYLES,
@@ -32,29 +27,25 @@ import {
   type SpeedId,
   type VideoModelId,
 } from '../models.ts';
-import { settingName } from '../surroundings.ts';
 import { DeleteItemDialog, type DeleteTarget } from './DeleteItemDialog.tsx';
-import { Section } from './layouts/Section.tsx';
+import { Banner, Button, IconButton, Skeleton, Switch, Text, TextArea } from './kit.ts';
+import { canCompare } from './lib/compare.ts';
 import { libraryUrl, stillThumbUrl, stillViewUrl, useDownload } from './lib/download.ts';
 import { classifyRunwayError } from './lib/runwayErrors.ts';
+import { takePreset } from './lib/reuse.ts';
+import { stillTitle } from './lib/titles.ts';
+import { CompareBoard } from './parts/CompareBoard.tsx';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { OptionSelect } from './parts/OptionSelect.tsx';
+import { Stage, StageEmpty, StageFrame, StageWorking } from './parts/Stage.tsx';
+import { StarButton, useStar } from './parts/StarButton.tsx';
+import { StillPicker } from './parts/StillPicker.tsx';
+import { TakeStrip, type TakeState, type TakeStripItem } from './parts/TakeStrip.tsx';
+import { useKeys } from './parts/useKeys.ts';
+import { BenchGroup, Note, Workbench } from './parts/Workbench.tsx';
 import { trpc } from './trpc.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
 import { FullSize } from './ui/FullSize.tsx';
-import { EmptyState } from './ui/EmptyState.tsx';
-import { FilterChips } from './ui/FilterChips.tsx';
-import { ImagePicker } from './ui/ImagePicker.tsx';
-import { Lightbox } from './ui/Lightbox.tsx';
-import { PageHeader } from './ui/PageHeader.tsx';
-import { Switch } from './ui/Switch.tsx';
-import { RenderingStatus } from './ui/RenderingStatus.tsx';
 import { Buy, useSpend } from './ui/Price.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { SkeletonBlock } from './ui/Skeleton.tsx';
-import { TakeStrip, type TakeState, type TakeStripItem } from './ui/TakeStrip.tsx';
-import { Text } from './ui/Text.tsx';
-import { TextArea } from './ui/TextArea.tsx';
-import { Select } from './ui/Select.tsx';
 import {
   duplicateMiddle,
   firstFrameRef,
@@ -63,9 +54,8 @@ import {
   RefsField,
   useVideoFrames,
 } from './VideoFrames.tsx';
-import styles from './Studio.module.css';
+import mk from './screens/Make.module.css';
 
-const PAGE = 12;
 /** Longest extra direction; the server refuses more. */
 const DIRECTION_MAX = 600;
 /** Ids whose retry can't succeed: stop asking. */
@@ -111,26 +101,19 @@ function errorCode(e: unknown): string | undefined {
   return (e as { data?: { code?: string } } | null)?.data?.code;
 }
 
-const DAY_FILTERS = [
-  { id: 'all', name: 'All' },
-  { id: 'today', name: 'Today' },
-  { id: 'people', name: 'With people' },
-  { id: 'night', name: 'Night' },
-] as const;
-
-type Filter = (typeof DAY_FILTERS)[number]['id'];
-
 export type VideoPageProps = {
   /** True while the Video tab is on screen; polling slows down when it isn't. */
   active: boolean;
   /** A still picked from the Stills tab ("Make a video"). */
   pickedStillId: string | null;
   onPick: (stillId: string | null) => void;
-  /** Go back to the Stills tab, when there are no stills yet. */
+  /** Go back to the Stills screen, when there are no stills yet. */
   onGoToStills: () => void;
+  /** Open the Library, where every clip is kept. */
+  onGoToLibrary: () => void;
 };
 
-export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: VideoPageProps) {
+export function VideoPage({ active, pickedStillId, onPick, onGoToStills, onGoToLibrary }: VideoPageProps) {
   const utils = trpc.useUtils();
   const library = trpc.library.useQuery(undefined, {
     // Only while this tab is on screen; the clip being made polls itself below.
@@ -150,15 +133,16 @@ export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: Video
   const [seconds, setSeconds] = useState(defaultVideoSeconds('seedance-2'));
   const [direction, setDirection] = useState('');
   const [onlyInImage, setOnlyInImage] = useState(true);
-  const [filter, setFilter] = useState<Filter>('all');
-  const [shown, setShown] = useState(PAGE);
-  const [zoom, setZoom] = useState<Still | null>(null);
+  /** The still picker is open. */
+  const [choosing, setChoosing] = useState(false);
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   /** Every video started here, newest first; each polls on its own. */
   const [takes, setTakes] = useState<Take[]>(readTakes);
   /** The take on the big screen, or null for the shot being set up. */
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [clipFilter, setClipFilter] = useState('all');
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
+  const [board, setBoard] = useState(false);
+  const [fullView, setFullView] = useState(false);
 
   const frames = useVideoFrames();
   const createVideo = trpc.createVideo.useMutation();
@@ -199,40 +183,6 @@ export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: Video
   const stills = useMemo(
     () => (library.data?.stills ?? []).filter((s) => s.status === 'succeeded'),
     [library.data]
-  );
-  const filtered = useMemo(() => {
-    const today = new Date().toDateString();
-    const nightLooks = new Set<string>(LOOKS.filter((l) => /night|moon|blue hour/i.test(l.name)).map((l) => l.id));
-    return stills.filter((s) =>
-      filter === 'today'
-        ? new Date(s.createdAt).toDateString() === today
-        : filter === 'people'
-          ? s.crowd !== 'none'
-          : filter === 'night'
-            ? !litFromReference(s) && (nightLooks.has(s.look) || /night/.test(s.look))
-            : true
-    );
-  }, [stills, filter]);
-
-  const pickerItems = useMemo(
-    () =>
-      stills.map((s) => ({
-        id: s.id,
-        src: stillThumbUrl(s.id),
-        alt: stillLabel(s),
-        caption: stillCaption(s),
-      })),
-    [stills]
-  );
-  const stepOneItems = useMemo(
-    () =>
-      filtered.slice(0, shown).map((s) => ({
-        id: s.id,
-        src: stillThumbUrl(s.id),
-        alt: stillLabel(s),
-        caption: stillCaption(s),
-      })),
-    [filtered, shown]
   );
   const selected = stills.find((s) => s.id === pickedStillId) ?? null;
   // A take is in flight until a final status arrives: a failed poll never
@@ -364,280 +314,291 @@ export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: Video
     }
   }
 
-  const rollingIds = new Set(takes.filter((_, i) => !statuses[i]?.data?.done).map((t) => t.id));
-  const allClips = (library.data?.clips ?? []).filter((c) => !rollingIds.has(c.id));
   const stripItems: TakeStripItem[] = takes.map((t, i) => ({
     id: t.id,
+    kind: 'clip',
     thumb: stillThumbUrl(t.stillId),
     title: t.title,
     state: takeStates[i]!,
+    ratio: ratioNumber(t.ratio),
     progress: statuses[i]?.data?.progress,
     since: t.since,
   }));
   const readyCount = takeStates.filter((st) => st === 'ready' || st === 'failed').length;
-  const clipModels = [...new Set(allClips.map((c) => c.videoModel))];
-  const activeClipFilter = clipModels.includes(clipFilter as VideoModelId) ? clipFilter : 'all';
-  const clips =
-    activeClipFilter === 'all' ? allClips : allClips.filter((c) => c.videoModel === activeClipFilter);
   const durations = videoDurations(videoModel);
   const secondsOptions = durations.map((s) => ({ id: String(s), name: `${s} seconds` }));
 
-  return (
+  // A clip preset from History or the Library fills the form; nothing is sent until the priced button.
+  useEffect(() => {
+    if (!active) return;
+    const p = takePreset('clip');
+    if (!p) return;
+    if (p.videoModel) {
+      const m = p.videoModel as VideoModelId;
+      setVideoModel(m);
+      setResolution(p.resolution ?? defaultVideoResolution(m));
+      setSeconds(p.seconds ?? defaultVideoSeconds(m));
+      createVideo.reset();
+    }
+    if (p.motion) setMotion(p.motion as MotionId);
+    if (p.moveStyle) setMoveStyle(p.moveStyle as MoveStyleId);
+    if (p.speed) setSpeed(p.speed as SpeedId);
+    if (p.direction !== undefined) setDirection(p.direction);
+    if (p.stillId) onPick(p.stillId);
+    setFocusId(null);
+  }, [active]);
+
+  const star = useStar();
+  const tickedTakes = takes.filter((t, i) => ticked.has(t.id) && takeStates[i] === 'ready');
+  const compare = canCompare(tickedTakes.map(() => ({ kind: 'clip' as const })));
+  const toggleTick = (id: string) =>
+    setTicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 2) next.add(id);
+      return next;
+    });
+  const order: Array<string | null> = [null, ...takes.map((t) => t.id)];
+  const step = (by: number) => {
+    const at = order.indexOf(focus ? focus.id : null);
+    const next = order[Math.min(order.length - 1, Math.max(0, at + by))];
+    if (next !== undefined) setFocusId(next);
+  };
+  const focusReady = focusState === 'ready';
+  useKeys(
+    [
+      { key: 'ArrowLeft', onKey: () => step(-1) },
+      { key: 'ArrowRight', onKey: () => step(1) },
+      { key: 's', onKey: () => focus && star.toggle('clip', focus.id), disabled: !focusReady },
+      { key: 'c', onKey: () => setBoard(true), disabled: !compare.ok },
+      { key: 'f', onKey: () => setFullView(true), disabled: !focusReady },
+    ],
+    active
+  );
+
+  const motionWords = (cameraTravels
+    ? motionLabel(motion, moveStyle, speed)
+    : motionLabel(motion, moveStyle === 'handheld' ? moveStyle : undefined)
+  ).toLowerCase();
+
+  const controls = (
     <>
-      <div className={styles.layout}>
-        <div className={styles.controls}>
-          <PageHeader
-            title="Bring a still to life"
-            description="Pick one of your film stills and animate it: water, leaves and people move, the architecture stays exactly as it is."
-          />
-          <div className={styles.strictSwitch}>
-            <Switch
-              label="Only what's in the image"
-              hint={
-                onlyInImage
-                  ? 'Nothing new appears: no added objects, people or places beyond the frame.'
-                  : 'Off: the model may add or reveal things the image doesn\'t show.'
-              }
-              checked={onlyInImage}
-              onChange={setOnlyInImage}
-            />
-          </div>
-          <Section step={1} title="Film still" description="From the takes you made on the Stills tab.">
-            {library.isLoading ? (
-              <SkeletonBlock height={180} />
-            ) : library.error ? (
-              <RunwayErrorNotice error={library.error} modelName="your library" />
-            ) : stills.length === 0 ? (
-              <EmptyState
-                title="No film stills yet"
-                hint="Make a still on the Stills tab first. Every finished take shows up here."
-                action={<Button onPress={onGoToStills}>Go to Stills</Button>}
-              />
-            ) : (
-              <>
-                {stills.length > 6 && (
-                  <FilterChips
-                    label="Filter stills"
-                    options={DAY_FILTERS}
-                    value={filter}
-                    onChange={(id) => {
-                      setFilter(id as Filter);
-                      setShown(PAGE);
-                    }}
-                  />
-                )}
-                {filtered.length === 0 ? (
-                  <Text tone="muted" size="sm" as="p">
-                    No stills match this filter.
-                  </Text>
-                ) : (
-                  <ImagePicker
-                    label="Film still to animate"
-                    value={selected?.id ?? null}
-                    onChange={onPick}
-                    items={stepOneItems}
-                  />
-                )}
-                <div className={styles.pickerTools}>
-                  {filtered.length > shown ? (
-                    <Button size="sm" variant="ghost" onPress={() => setShown((n) => n + PAGE)}>
-                      Show {Math.min(PAGE, filtered.length - shown)} more
-                    </Button>
-                  ) : (
-                    <span />
-                  )}
-                  {selected && (
-                    <span className={styles.pickerActions}>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        icon={<Maximize2 size={14} />}
-                        onPress={() => setZoom(selected)}
-                      >
-                        View full size
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        icon={<Trash2 size={14} />}
-                        disabled={takes.some((t, i) => t.stillId === selected.id && takeStates[i] !== 'ready' && takeStates[i] !== 'failed')}
-                        onPress={() => setDeleting({ kind: 'still', id: selected.id, title: stillCaption(selected) })}
-                      >
-                        Remove
-                      </Button>
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-          </Section>
-
-          <Section step={2} title="Model" description="Every model starts on your still as the first frame unless you choose another in the next step.">
-            <div className={styles.selectRow}>
-              <Select
-                label="Video model"
-                options={VIDEO_MODELS}
-                value={videoModel}
-                onChange={(id) => {
-                  const next = id as VideoModelId;
-                  setVideoModel(next);
-                  setResolution(defaultVideoResolution(next));
-                  // Keep the chosen length when the new model can run it.
-                  setSeconds((s) => snapVideoSeconds(next, s));
-                  createVideo.reset();
-                }}
-              />
-              <Select
-                label="Resolution"
-                options={videoResolutions(videoModel)}
-                value={resolution}
-                onChange={setResolution}
-                disabled={videoResolutions(videoModel).length < 2}
-              />
+      <BenchGroup
+        title="Film still"
+        description="The still the shot starts on, from the takes you made on Stills."
+      >
+        {library.isLoading ? (
+          <div className={mk.picked}>
+            <Skeleton height={63} />
+            <div className={mk.pickedBody}>
+              <Skeleton height={12} width="80%" />
+              <Skeleton height={12} width="50%" index={1} />
             </div>
-          </Section>
-
-          <Section
-            step={3}
-            title="Frames"
-            description="Optional. The shot starts on your still; add a first, in-between or last frame only if you need one."
-          >
-            <FramesField
-              frames={frames}
-              modelName={videoModelName(videoModel)}
-              limit={keyframeLimit}
-              seconds={seconds}
-              picked={selected ? { src: stillThumbUrl(selected.id), name: stillCaption(selected) } : null}
-              items={pickerItems}
-              endModels={videoModelsWith('end')}
-              middleModels={videoModelsWith('middle')}
-              lastBlockedByExtras={lastBlocked}
-              disabled={false}
-            />
-          </Section>
-
-          <Section
-            step={4}
-            title="Camera"
-            description="Short moves only, so nothing outside the still has to be invented."
-          >
-            <div className={styles.stack}>
-              <Select
-                label="Camera move"
-                options={MOTIONS}
-                value={motion}
-                onChange={(id) => setMotion(id as MotionId)}
-              />
-              <div className={styles.cameraRow}>
-                <Select
-                  label="Movement style"
-                  options={MOVE_STYLES}
-                  value={moveStyle}
-                  onChange={(id) => setMoveStyle(id as MoveStyleId)}
+          </div>
+        ) : library.error && !library.data ? (
+          <ErrorNote
+            error={library.error}
+            action={<Button label="Try again" size="sm" onClick={() => void library.refetch()} />}
+          />
+        ) : stills.length === 0 ? (
+          <>
+            <Note>No film stills yet. Make a still on Stills first; every finished take shows up here.</Note>
+            <div>
+              <Button label="Go to Stills" size="sm" onClick={onGoToStills} />
+            </div>
+          </>
+        ) : selected ? (
+          <div className={mk.picked}>
+            <figure className={mk.source} style={{ aspectRatio: `${selected.width} / ${selected.height}` }}>
+              <img src={stillThumbUrl(selected.id)} alt={`Selected still: ${stillTitle(selected)}`} />
+            </figure>
+            <div className={mk.pickedBody}>
+              <Text type="label" maxLines={2}>
+                {stillTitle(selected)}
+              </Text>
+              <div className={mk.row}>
+                <Button label="Change" size="sm" variant="secondary" icon={<ImagePlus size={14} />} onClick={() => setChoosing(true)} />
+                <FullSize
+                  src={stillViewUrl(selected.id)}
+                  kind="still"
+                  title={stillTitle(selected)}
+                  alt={`Selected still: ${stillTitle(selected)}`}
+                  iconOnly
                 />
-                <Select
-                  label="Speed"
-                  options={SPEEDS}
-                  value={speed}
-                  onChange={(id) => setSpeed(id as SpeedId)}
-                  disabled={!cameraTravels}
+                <IconButton
+                  label="Remove from the library"
+                  tooltip="Remove from the library"
+                  size="sm"
+                  variant="ghost"
+                  icon={<Trash2 size={16} />}
+                  isDisabled={takes.some(
+                    (t, i) => t.stillId === selected.id && takeStates[i] !== 'ready' && takeStates[i] !== 'failed'
+                  )}
+                  onClick={() => setDeleting({ kind: 'still', id: selected.id, title: stillTitle(selected) })}
                 />
               </div>
-              {!cameraTravels && (
-                <Text tone="muted" size="sm" as="p" className={styles.meta}>
-                  The camera holds its position, so speed doesn't apply
-                  {moveStyle === 'handheld' ? '; handheld adds a slight natural sway' : ''}.
-                </Text>
-              )}
             </div>
-          </Section>
+          </div>
+        ) : (
+          <div>
+            <Button label="Choose a still" icon={<ImagePlus size={16} />} onClick={() => setChoosing(true)} />
+          </div>
+        )}
+      </BenchGroup>
 
-          <Section
-            step={5}
-            title="Length"
-            description={`${videoModelName(videoModel)} runs ${durations[0]} to ${durations[durations.length - 1]} seconds. Longer clips cost more.`}
-          >
-            <Select
-              label="Clip length"
-              options={secondsOptions}
-              value={String(seconds)}
-              onChange={(id) => setSeconds(Number(id))}
-              disabled={durations.length < 2}
-              showHint={false}
-            />
-          </Section>
+      <Switch
+        label="Only what's in the image"
+        description={
+          onlyInImage
+            ? 'Nothing new appears: no added objects, people or places beyond the frame.'
+            : "Off: the model may add or reveal things the image doesn't show."
+        }
+        value={onlyInImage}
+        onChange={setOnlyInImage}
+      />
 
-          <Section
-            step={6}
-            title="Extra images"
-            description="Optional. Add pictures of things to bring into the shot; each is named @img1, @img2 and so on."
-          >
-            <RefsField
-              frames={frames}
-              modelName={videoModelName(videoModel)}
-              limit={extraLimit}
-              items={pickerItems}
-              extraModels={videoModelsWith('extra')}
-              blockedReason={
-                extrasBlocked
-                  ? `${videoModelName(videoModel)} can use a last frame or extra images, not both. Remove the last frame to add extra images.`
-                  : undefined
-              }
-              disabled={false}
-              onInsert={insertHandle}
-            />
-          </Section>
+      <BenchGroup
+        title="Model"
+        description="Every model starts on your still as the first frame unless you choose another under Frames."
+      >
+        <OptionSelect
+          label="Video model"
+          options={VIDEO_MODELS}
+          value={videoModel}
+          onChange={(id) => {
+            const next = id as VideoModelId;
+            setVideoModel(next);
+            setResolution(defaultVideoResolution(next));
+            // Keep the chosen length when the new model can run it.
+            setSeconds((s) => snapVideoSeconds(next, s));
+            createVideo.reset();
+          }}
+        />
+        <div className={mk.pair}>
+          <OptionSelect
+            label="Resolution"
+            options={videoResolutions(videoModel)}
+            value={resolution}
+            onChange={setResolution}
+            disabled={videoResolutions(videoModel).length < 2}
+            showHint={false}
+          />
+          <OptionSelect
+            label="Length"
+            options={secondsOptions}
+            value={String(seconds)}
+            onChange={(id) => setSeconds(Number(id))}
+            disabled={durations.length < 2}
+            showHint={false}
+          />
+        </div>
+        <Note>
+          {videoModelName(videoModel)} runs {durations[0]} to {durations[durations.length - 1]} seconds. Longer clips cost more.
+        </Note>
+      </BenchGroup>
 
-          <Section step={7} title="Extra direction" description="Optional. What should move, and how.">
-            <div className={styles.stack}>
-              <TextArea
-                aria-label="Extra video direction"
-                value={direction}
-                onChange={setDirection}
-                rows={3}
-                maxLength={DIRECTION_MAX}
-                placeholder="e.g. the couple walks slowly toward the water wall, leaves drift across the pool"
-              />
-              <Text tone="muted" size="sm" as="p" className={styles.frameNote}>
-                {refsSent.length > 0
-                  ? `Name your extra images in the direction, e.g. "use the bench from @img2". You have @img1 to @img${refsSent.length}.`
-                  : 'With extra images added, you can name them here, e.g. "use the bench from @img2".'}
-              </Text>
-              {directionTooLong && (
-                <Alert tone="error" title="Your direction is too long">
-                  Shorten it by {direction.length - DIRECTION_MAX} characters to make the video.
-                </Alert>
-              )}
-              {handleProblem && (
-                <Alert tone="error" title="Check the image names in your direction">
-                  {handleProblem}
-                </Alert>
-              )}
-            </div>
-          </Section>
+      <BenchGroup
+        title="Frames"
+        description="Optional. The shot starts on your still; add a first, in-between or last frame only if you need one."
+      >
+        <FramesField
+          frames={frames}
+          modelName={videoModelName(videoModel)}
+          limit={keyframeLimit}
+          seconds={seconds}
+          picked={selected ? { src: stillThumbUrl(selected.id), name: stillTitle(selected) } : null}
+          stills={stills}
+          endModels={videoModelsWith('end')}
+          middleModels={videoModelsWith('middle')}
+          lastBlockedByExtras={lastBlocked}
+          disabled={false}
+        />
+      </BenchGroup>
 
-          <div className={styles.actionBar}>
-          <Buy items={priceItems}>
-          <Button
-            variant="primary"
-            icon={<Clapperboard size={16} />}
-            className={styles.generate}
-            loading={createVideo.isPending}
-            disabled={
-              createVideo.isPending ||
-              spend.blocked ||
-              full ||
-              !selected ||
-              frames.uploading ||
-              handleProblem !== undefined ||
-              directionTooLong ||
-              duplicateFrames ||
-              planBlocked ||
-              unavailable
-            }
-            onPress={() => void run()}
-          >
-            {createVideo.isPending
+      <BenchGroup title="Camera" description="Short moves only, so nothing outside the still has to be invented.">
+        <OptionSelect label="Camera move" options={MOTIONS} value={motion} onChange={(id) => setMotion(id as MotionId)} />
+        <div className={mk.pair}>
+          <OptionSelect
+            label="Movement style"
+            options={MOVE_STYLES}
+            value={moveStyle}
+            onChange={(id) => setMoveStyle(id as MoveStyleId)}
+            showHint={false}
+          />
+          <OptionSelect
+            label="Speed"
+            options={SPEEDS}
+            value={speed}
+            onChange={(id) => setSpeed(id as SpeedId)}
+            disabled={!cameraTravels}
+            disabledMessage="The camera holds its position, so speed doesn't apply."
+            showHint={false}
+          />
+        </div>
+        {!cameraTravels && (
+          <Note>
+            The camera holds its position, so speed doesn&rsquo;t apply
+            {moveStyle === 'handheld' ? '; handheld adds a slight natural sway' : ''}.
+          </Note>
+        )}
+      </BenchGroup>
+
+      <BenchGroup
+        title="Extra images"
+        description="Optional. Add pictures of things to bring into the shot; each is named @img1, @img2 and so on."
+      >
+        <RefsField
+          frames={frames}
+          modelName={videoModelName(videoModel)}
+          limit={extraLimit}
+          stills={stills}
+          extraModels={videoModelsWith('extra')}
+          blockedReason={
+            extrasBlocked
+              ? `${videoModelName(videoModel)} can use a last frame or extra images, not both. Remove the last frame to add extra images.`
+              : undefined
+          }
+          disabled={false}
+          onInsert={insertHandle}
+        />
+      </BenchGroup>
+
+      <BenchGroup title="Extra direction" description="Optional. What should move, and how.">
+        <TextArea
+          label="Extra video direction"
+          isLabelHidden
+          value={direction}
+          onChange={setDirection}
+          rows={3}
+          maxLength={DIRECTION_MAX}
+          placeholder="For example: the couple walks slowly toward the water wall, leaves drift across the pool"
+          width="100%"
+        />
+        <Note>
+          {refsSent.length > 0
+            ? `Name your extra images in the direction, for example "use the bench from @img2". You have @img1 to @img${refsSent.length}.`
+            : 'With extra images added, you can name them here, for example "use the bench from @img2".'}
+        </Note>
+        {directionTooLong && (
+          <Banner
+            status="error"
+            title="Your direction is too long"
+            description={`Shorten it by ${direction.length - DIRECTION_MAX} characters to make the video.`}
+          />
+        )}
+        {handleProblem && (
+          <Banner status="error" title="Check the image names in your direction" description={handleProblem} />
+        )}
+      </BenchGroup>
+    </>
+  );
+
+  const foot = (
+    <>
+      <Buy items={priceItems}>
+        <Button
+          label={
+            createVideo.isPending
               ? 'Starting…'
               : full
                 ? `${MAX_IN_FLIGHT} videos rendering`
@@ -649,150 +610,161 @@ export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: Video
                       ? 'Pick a still first'
                       : inFlight > 0
                         ? 'Make another video'
-                        : 'Make the video'}
-          </Button>
-          </Buy>
-          <Text tone="muted" size="sm" as="p" className={styles.meta}>
-            {videoModelName(videoModel)} at {videoResolutionName(videoModel, resolution)},{' '}
-            {seconds} seconds,{' '}
-            {(cameraTravels
-              ? motionLabel(motion, moveStyle, speed)
-              : motionLabel(motion, moveStyle === 'handheld' ? moveStyle : undefined)
-            ).toLowerCase()}
-            . Each video shows its price before you make it.
-          </Text>
-          <p className={styles.queueNote} role="status" aria-live="polite">
-            {full
-              ? `${MAX_IN_FLIGHT} videos are rendering. You can start another as soon as one finishes.`
-              : inFlight > 0
-                ? `${inFlight} video${inFlight === 1 ? '' : 's'} rendering. Change anything and start the next one; each take keeps its own settings.`
-                : ''}
-          </p>
-          <RunwayErrorNotice
-            error={shownError}
-            modelName={videoModelName(videoModel)}
-            onRetry={() => void run()}
-          />
-          </div>
-        </div>
+                        : 'Make the video'
+          }
+          variant="primary"
+          icon={<Clapperboard size={16} />}
+          width="100%"
+          isLoading={createVideo.isPending}
+          isDisabled={
+            createVideo.isPending ||
+            spend.blocked ||
+            full ||
+            !selected ||
+            frames.uploading ||
+            handleProblem !== undefined ||
+            directionTooLong ||
+            duplicateFrames ||
+            planBlocked ||
+            unavailable
+          }
+          onClick={() => void run()}
+        />
+      </Buy>
+      <Note>
+        {videoModelName(videoModel)} at {videoResolutionName(videoModel, resolution)}, {seconds} seconds, {motionWords}. Each
+        video shows its price before you make it.
+      </Note>
+      <p className={mk.queue} role="status" aria-live="polite">
+        {full
+          ? `${MAX_IN_FLIGHT} videos are rendering. You can start another as soon as one finishes.`
+          : inFlight > 0
+            ? `${inFlight} video${inFlight === 1 ? '' : 's'} rendering. Change anything and start the next one; each take keeps its own settings.`
+            : ''}
+      </p>
+      <ErrorNote error={shownError} />
+    </>
+  );
 
-        <div className={styles.result} data-stage>
-          <Section title={focus ? 'Video' : 'Next shot'}>
-            {focus && focusStatus ? (
-              <TakeView
-                key={focus.id}
-                take={focus}
-                status={focusStatus}
-                state={focusState!}
-                active={active}
-                onDismiss={() => dropTake(focus.id)}
-              />
-            ) : (
-              <div className={styles.resultFrame} style={{ aspectRatio: previewRatio, ['--ar' as string]: previewRatio }}>
-                {selected ? (
-                  <img
-                    className={styles.image}
-                    src={
-                      frames.first
-                        ? frames.first.stillId
-                          ? stillViewUrl(frames.first.stillId)
-                          : frames.first.src
-                        : stillViewUrl(selected.id)
-                    }
-                    alt={
-                      frames.first
-                        ? `First frame: ${frames.first.name}`
-                        : `Selected still: ${stillLabel(selected)}`
-                    }
-                  />
-                ) : (
-                  <EmptyState
-                    title="Your video will appear here"
-                    hint="Pick a still, choose a model and camera move, then press Make the video."
-                  />
-                )}
-              </div>
-            )}
-          </Section>
-          {takes.length > 0 && (
-            <Section
-              title={
-                <span className={styles.takesHead}>
-                  <span>
-                    Takes
-                    {inFlight > 0 ? `, ${inFlight} rendering` : ''}
-                  </span>
-                  {readyCount > 0 && (
-                    <Button size="sm" variant="ghost" icon={<ListX size={14} />} onPress={clearFinished}>
-                      Clear finished
-                    </Button>
-                  )}
-                </span>
+  const setupSrc = selected
+    ? frames.first
+      ? frames.first.stillId
+        ? stillViewUrl(frames.first.stillId)
+        : frames.first.src
+      : stillViewUrl(selected.id)
+    : undefined;
+  const stage =
+    focus && focusStatus ? (
+      <TakeStage
+        key={focus.id}
+        take={focus}
+        status={focusStatus}
+        state={focusState!}
+        onDismiss={() => dropTake(focus.id)}
+        full={fullView}
+        onFull={setFullView}
+      />
+    ) : (
+      <Stage
+        title={selected ? 'Next shot' : 'Bring a still to life'}
+        caption={
+          selected
+            ? `${frames.first ? `Starts on ${frames.first.name}` : stillTitle(selected)}, ${motionWords}, ${seconds} seconds`
+            : 'Water, leaves and people move; the architecture stays exactly as it is.'
+        }
+      >
+        <StageFrame ratio={ratioNumber(previewRatio)}>
+          {setupSrc ? (
+            <img
+              src={setupSrc}
+              alt={frames.first ? `First frame: ${frames.first.name}` : `Selected still: ${stillTitle(selected!)}`}
+            />
+          ) : (
+            <StageEmpty
+              title={stills.length === 0 ? 'Make a still first' : 'Pick a still to animate'}
+              hint={
+                stills.length === 0
+                  ? 'Every finished take on Stills can be animated here.'
+                  : 'Choose a still, a model and a camera move, then press Make the video.'
               }
-            >
-              <TakeStrip
-                label="Takes from this session"
-                items={stripItems}
-                value={focus ? focus.id : null}
-                onChange={setFocusId}
-                next={{
-                  thumb: selected ? stillThumbUrl(selected.id) : undefined,
-                  title: selected ? stillCaption(selected) : 'Pick a still',
-                }}
-              />
-            </Section>
-          )}
-          <div className={styles.below}>
-              <Section title="Your clips" description="Every video you make, newest first.">
-                {library.isLoading ? (
-                  <SkeletonBlock height={140} />
-                ) : library.error && !library.data ? (
-                  <div className={styles.stack}>
-                    <Alert tone="error" title="Your clips didn't load">
-                      {library.error.message}
-                    </Alert>
-                    <div>
-                      <Button size="sm" onPress={() => void library.refetch()}>
-                        Try again
-                      </Button>
-                    </div>
-                  </div>
-                ) : allClips.length === 0 ? (
-                  <EmptyState
-                    title="No clips yet"
-                    hint="Every video you make is kept here so you can watch or download it later."
-                  />
+              action={
+                stills.length === 0 ? (
+                  <Button label="Go to Stills" onClick={onGoToStills} />
                 ) : (
-                  <div className={styles.stack}>
-                    {clipModels.length > 1 && (
-                      <FilterChips
-                        label="Filter clips by model"
-                        options={[
-                          { id: 'all', name: 'All' },
-                          ...clipModels.map((m) => ({ id: m, name: videoModelName(m) })),
-                        ]}
-                        value={activeClipFilter}
-                        onChange={setClipFilter}
-                      />
-                    )}
-                  <ClipList
-                    key={activeClipFilter}
-                    clips={clips}
-                    stills={library.data?.stills ?? []}
-                    onDelete={(c) => setDeleting({ kind: 'clip', id: c.id, title: clipLabel(c) })}
-                  />
-                  </div>
-                )}
-              </Section>
-          </div>
-        </div>
-      </div>
+                  <Button label="Choose a still" icon={<ImagePlus size={16} />} onClick={() => setChoosing(true)} />
+                )
+              }
+            />
+          )}
+        </StageFrame>
+      </Stage>
+    );
 
-      <Lightbox
-        src={zoom ? stillViewUrl(zoom.id) : null}
-        alt={zoom ? stillLabel(zoom) : ''}
-        title={zoom ? stillCaption(zoom) : ''}
-        onClose={() => setZoom(null)}
+  const strip =
+    takes.length > 0 ? (
+      <TakeStrip
+        label="Takes"
+        items={stripItems}
+        value={focus ? focus.id : null}
+        onChange={setFocusId}
+        next={{
+          thumb: selected ? stillThumbUrl(selected.id) : undefined,
+          title: selected ? stillTitle(selected) : 'Pick a still',
+          ratio: selected ? selected.width / selected.height : undefined,
+        }}
+        ticked={ticked}
+        onTick={toggleTick}
+        actions={
+          <>
+            {ticked.size > 0 && (
+              <Button
+                label={`Compare ${tickedTakes.length}`}
+                size="sm"
+                isDisabled={!compare.ok}
+                tooltip={compare.ok ? 'Play both side by side (C)' : compare.why}
+                onClick={() => setBoard(true)}
+              />
+            )}
+            {readyCount > 0 && (
+              <Button label="Clear finished" size="sm" variant="ghost" icon={<ListX size={14} />} onClick={clearFinished} />
+            )}
+            <Button label="Every clip" size="sm" variant="ghost" icon={<Library size={14} />} tooltip="Every clip you made is in the Library" onClick={onGoToLibrary} />
+          </>
+        }
+      />
+    ) : undefined;
+
+  return (
+    <>
+      <Workbench label="Video settings" saveId="video-controls" controls={controls} foot={foot} stage={stage} strip={strip} />
+      <StillPicker
+        isOpen={choosing}
+        title="Choose the still to animate"
+        stills={stills}
+        value={selected?.id ?? null}
+        onPick={(s: Still) => {
+          onPick(s.id);
+          setChoosing(false);
+        }}
+        onClose={() => setChoosing(false)}
+      />
+      <CompareBoard
+        isOpen={board && compare.ok}
+        onClose={() => setBoard(false)}
+        items={tickedTakes.map((t) => ({
+          id: t.id,
+          kind: 'clip' as const,
+          src: libraryUrl('clip', t.id),
+          poster: stillThumbUrl(t.stillId),
+          title: t.title,
+          detail: `${t.seconds} seconds`,
+          ratio: ratioNumber(t.ratio),
+        }))}
+        pickLabel="Put on the stage"
+        onPick={(id) => {
+          setFocusId(id);
+          setBoard(false);
+        }}
       />
       <DeleteItemDialog
         target={deleting}
@@ -806,7 +778,7 @@ export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: Video
   );
 }
 
-/** The slice of a take's status query the big screen reads. */
+/** The slice of a take's status query the stage reads. */
 type StatusQuery = {
   data?: inferRouterOutputs<AppRouterType>['videoStatus'] | undefined;
   error: unknown;
@@ -814,31 +786,91 @@ type StatusQuery = {
   refetch: () => Promise<unknown>;
 };
 
-/** One take on the big screen: rendering, the finished clip with its
- * actions, or why it didn't render. */
-function TakeView({
+/** One take on the stage: rendering, the finished clip with its actions, or why it didn't render. */
+function TakeStage({
   take,
   status,
   state,
-  active,
   onDismiss,
+  full,
+  onFull,
 }: {
   take: Take;
   status: StatusQuery;
   state: TakeState;
-  active: boolean;
   onDismiss: () => void;
+  full: boolean;
+  onFull: (open: boolean) => void;
 }) {
   const saver = useDownload();
-  const style = { aspectRatio: take.ratio, ['--ar' as string]: take.ratio };
   const url = libraryUrl('clip', take.id);
   const pollFinal = FINAL_CODES.has(errorCode(status.error) ?? '');
   const special = status.error ? classifyRunwayError(status.error) : null;
+  const caption = `${take.title}${
+    videoResolutionName(take.model, take.resolution) ? ` at ${videoResolutionName(take.model, take.resolution)}` : ''
+  }, ${take.seconds} seconds`;
+  const working = state === 'rendering' || state === 'queued';
 
-  if (state === 'ready') {
-    return (
-      <>
-        <div className={styles.resultFrame} style={style}>
+  return (
+    <Stage
+      title={state === 'ready' ? 'Video' : working ? 'Being made' : state === 'lost' ? 'Lost touch' : "Didn't render"}
+      caption={caption}
+      actions={
+        state === 'ready' ? (
+          <>
+            <FullSize src={url} kind="clip" title={take.title} alt={`Video: ${take.title}`} iconOnly isOpen={full} onOpenChange={onFull} />
+            <StarButton kind="clip" id={take.id} />
+            <IconButton
+              label={saver.pending ? saver.label('Download') : 'Download'}
+              tooltip={saver.pending ? saver.label('Download') : 'Download'}
+              size="sm"
+              variant="ghost"
+              isLoading={saver.pending}
+              icon={<Download size={16} />}
+              onClick={() => saver.start(url, `film-clip-${take.model}.mp4`)}
+            />
+          </>
+        ) : state === 'failed' ? (
+          <Button label="Remove from takes" size="sm" variant="ghost" onClick={onDismiss} />
+        ) : undefined
+      }
+      below={
+        <>
+          {saver.error && <Banner status="error" title="Download failed" description={saver.error} />}
+          {state === 'lost' && (
+            <Banner
+              status="error"
+              title="We lost touch with this video"
+              description={
+                pollFinal
+                  ? `${special?.message ?? 'The engine could not find it.'} It may still appear in the Library.`
+                  : `${special?.message ?? 'The check failed.'} It may still be rendering, so check again.`
+              }
+              endContent={
+                <span className={mk.row}>
+                  <Button label="Check again" size="sm" isLoading={status.isFetching} onClick={() => void status.refetch()} />
+                  {pollFinal && <Button label="Stop waiting" size="sm" variant="ghost" onClick={onDismiss} />}
+                </span>
+              }
+            />
+          )}
+          {state === 'failed' && (
+            <Banner
+              status="error"
+              title="This video didn't render"
+              description={status.data?.error ?? 'The video did not render. Try again.'}
+            />
+          )}
+          {working && (
+            <Text type="supporting" as="p">
+              Keep working: set up the next shot and it renders alongside this one.
+            </Text>
+          )}
+        </>
+      }
+    >
+      <StageFrame ratio={ratioNumber(take.ratio)} dim={state !== 'ready'}>
+        {state === 'ready' ? (
           <video
             src={url}
             poster={stillThumbUrl(take.stillId)}
@@ -849,175 +881,22 @@ function TakeView({
             preload="metadata"
             aria-label={`Video: ${take.title}`}
           />
-        </div>
-        {saver.error && (
-          <Alert tone="error" title="Download failed">
-            {saver.error}
-          </Alert>
-        )}
-        <div className={styles.resultActions}>
-          <Button
-            icon={<Download size={16} />}
-            loading={saver.pending}
-            onPress={() => saver.start(url, `film-clip-${take.model}.mp4`)}
-          >
-            {saver.label('Download')}
-          </Button>
-          <FullSize src={url} kind="clip" title={take.title} alt={`Video: ${take.title}`} />
-          <Text tone="muted" size="sm" className={styles.resultNote}>
-            {take.title}
-            {videoResolutionName(take.model, take.resolution) && ` at ${videoResolutionName(take.model, take.resolution)}`},{' '}
-            {take.seconds} seconds
-          </Text>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div className={styles.resultFrame} style={style}>
-        {state === 'lost' ? (
-          <div className={styles.frameAlert}>
-            <Alert tone="error" title="We lost touch with this video">
-              {pollFinal
-                ? `${special?.message ?? 'The engine could not find it.'} It may still appear under Your clips.`
-                : `${special?.message ?? 'The check failed.'} It may still be rendering, so check again.`}
-            </Alert>
-            <div className={styles.resultActions}>
-              <Button size="sm" loading={status.isFetching} onPress={() => void status.refetch()}>
-                Check again
-              </Button>
-              {pollFinal && (
-                <Button size="sm" variant="ghost" onPress={onDismiss}>
-                  Stop waiting
-                </Button>
-              )}
-            </div>
-          </div>
-        ) : state === 'failed' ? (
-          <div className={styles.frameAlert}>
-            <Alert tone="error" title="This video didn't render">
-              {status.data?.error ?? 'The video did not render. Try again.'}
-            </Alert>
-            <div className={styles.resultActions}>
-              <Button size="sm" variant="ghost" onPress={onDismiss}>
-                Remove from takes
-              </Button>
-            </div>
-          </div>
         ) : (
-          <RenderingStatus
-            label={
-              state === 'queued'
-                ? 'Waiting for a camera…'
-                : 'Rolling camera. Video usually takes one to a few minutes…'
-            }
-            progress={status.data?.progress}
-            runKey={take.id}
-            since={take.since}
-          />
+          <>
+            <img src={stillViewUrl(take.stillId)} alt="" />
+            {working && (
+              <StageWorking
+                label={state === 'queued' ? 'Waiting for a camera' : 'Rolling camera. Video usually takes one to a few minutes'}
+                progress={status.data?.progress}
+                runKey={take.id}
+                since={take.since}
+              />
+            )}
+          </>
         )}
-      </div>
-      {(state === 'rendering' || state === 'queued') && (
-        <Text tone="muted" size="sm" as="p" className={styles.resultNote}>
-          {take.title}, {take.seconds} seconds. Keep working: set up the next shot and it renders alongside this one.
-        </Text>
-      )}
-    </>
+      </StageFrame>
+    </Stage>
   );
-}
-
-function ClipList({
-  clips,
-  stills,
-  onDelete,
-}: {
-  clips: Clip[];
-  stills: Still[];
-  onDelete: (clip: Clip) => void;
-}) {
-  const [shown, setShown] = useState(6);
-  return (
-    <>
-      <div className={styles.clips}>
-        {clips.slice(0, shown).map((c) => {
-          const still = stills.find((s) => s.id === c.stillId);
-          const label = clipLabel(c);
-          return (
-            <figure key={c.id} className={styles.clipCard}>
-              {c.status === 'succeeded' ? (
-                <video
-                  className={styles.clipFrame}
-                  src={libraryUrl('clip', c.id)}
-                  poster={still ? stillThumbUrl(still.id) : undefined}
-                  controls
-                  playsInline
-                  preload="none"
-                  aria-label={label}
-                />
-              ) : (
-                <div className={styles.clipFailed}>
-                  <Text tone="muted" size="sm">
-                    {c.status === 'pending' ? 'Still rendering…' : c.error ?? 'This clip did not render.'}
-                  </Text>
-                </div>
-              )}
-              <figcaption className={styles.clipCaption}>
-                <span className={styles.clipCaptionText}>
-                  <Text size="sm">{label}</Text>
-                  <Text tone="muted" size="sm">
-                    {new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </Text>
-                </span>
-                {c.status !== 'pending' && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={<Trash2 size={14} />}
-                    aria-label={`Delete ${label}`}
-                    onPress={() => onDelete(c)}
-                  />
-                )}
-              </figcaption>
-            </figure>
-          );
-        })}
-      </div>
-      {clips.length > shown && (
-        <Button size="sm" variant="ghost" className={styles.more} onPress={() => setShown((n) => n + 6)}>
-          Show more clips
-        </Button>
-      )}
-    </>
-  );
-}
-
-function clipLabel(c: Clip): string {
-  const motion = motionLabel(c.motion, c.moveStyle, c.speed).toLowerCase();
-  const res = videoResolutionName(c.videoModel, c.resolution);
-  const extras = [
-    c.frameCount && c.frameCount > 1 ? `${c.frameCount} frames` : '',
-    c.refCount ? `${c.refCount} extra image${c.refCount === 1 ? '' : 's'}` : '',
-  ].filter(Boolean);
-  const base = `${videoModelName(c.videoModel)}${res ? ` ${res}` : ''}, ${motion}${
-    extras.length ? `, ${extras.join(' and ')}` : ''
-  }`;
-  return c.upscaleOf ? `${base}, upscaled ${c.scale ?? ''}× (${upscalerName(c.upscaler)})` : base;
-}
-
-function stillCaption(s: Still): string {
-  const res = imageResolutionName(s.imageModel, s.resolution);
-  const size = s.upscaleOf ? `, upscaled ${s.scale ?? ''}×` : res ? `, ${res}` : '';
-  if (s.location) return `Location: ${locationName(s.location)}${size}`;
-  if (s.surroundings) return `Surroundings: ${settingName(s.surroundings.setting)}${size}`;
-  if (s.storyboard) return `Storyboard ${s.storyboard.order}: ${s.storyboard.title}${size}`;
-  const look = lookLabel(s.look, litFromReference(s));
-  return `${look}${s.crowd !== 'none' ? ', people' : ''}${size}`;
-}
-
-function stillLabel(s: Still): string {
-  return `${stillCaption(s)}, made with ${imageModelName(s.imageModel)} on ${new Date(s.createdAt).toLocaleString()}`;
 }
 
 /** An @imgN in the direction that the clip won't have, in words. */
@@ -1035,4 +914,10 @@ function unknownHandle(direction: string, sent: number, model: string): string |
 
 function frameRatio(s: { width: number; height: number } | null): string {
   return s ? `${s.width} / ${s.height}` : '16 / 9';
+}
+
+/** "2560 / 1440" as a number, width over height. */
+function ratioNumber(frame: string): number {
+  const [w, h] = frame.split('/').map((n) => Number(n.trim()));
+  return w && h ? w / h : 16 / 9;
 }
