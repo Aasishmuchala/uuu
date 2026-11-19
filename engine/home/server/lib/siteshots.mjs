@@ -69,6 +69,7 @@ export const SAY = Object.freeze({
   answer: "The page viewer's answer was not what it sends.",
   keep: "The pictures could not be kept.",
   queue: "Too many sites are waiting for pictures. Try again in a few minutes.",
+  testBusy: "The page viewer is busy. Try the test again in a minute.",
   gone: "This site is not there any more.",
   notYet: "Pictures of this version are not taken yet.",
   notYetOff: "Pictures of this version are not taken yet: the page viewer is off.",
@@ -767,9 +768,12 @@ export function requestShots(ctx, identifier, ref) {
 
 // The owner's Test (C17: whatever the switch): the given files (the home server's own test page) through the
 // viewer. -> { ok, seconds, pictures, images, sentence, reason }; `reason` is "no_answer", "no_chrome", "busy",
-// "answer" or null.
+// "answer", "queued" or null. The Test never waits in the queue (S-routes-5b111049): while a render is running or
+// waiting it starts nothing and says so at once (reason "queued"), so one Test runs at a time; agents' sites queue
+// as before. The check and the enqueue happen in the same tick, so two Tests at once cannot both pass it.
 export async function testViewer(ctx, files) {
   const started = Date.now();
+  if (waiting > 0) return { ok: false, seconds: 0, pictures: 0, images: [], sentence: SAY.testBusy, reason: "queued" };
   const out = await enqueue(async () => {
     const done = await shoot(ctx, files, { owner: true });
     if (!done.ok) return done;

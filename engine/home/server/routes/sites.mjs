@@ -192,6 +192,7 @@ export default function register(app) {
 
   app.post("/api/viewer/test", async (ctx) => {
     const r = await testViewer(ctx, TEST_SITE.map((f) => ({ name: f.name, data: f.data })));
+    if (r.reason === "queued") throw ctx.fail(409, r.sentence, "The viewer is taking pictures now.", "view_busy");
     const sentence = r.ok ? r.sentence : r.reason === "no_answer" ? VIEWER_SAY.testOff : r.reason === "no_chrome" ? SAY.noChrome : r.sentence;
     return { ok: r.ok, seconds: r.seconds, pictures: r.pictures, images: r.images, sentence };
   });

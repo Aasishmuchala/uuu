@@ -542,6 +542,62 @@ test("the Test: the home's own page through the viewer with the switch off; no a
   }, { answer: () => ({ status: 403, json: { error: { message: "No Chrome was found on this Mac." }, code: "view_no_chrome" } }) });
 });
 
+test("20 Tests at once: one runs, 19 are refused at once with 409 view_busy; a site's render also refuses the Test (S-routes-5b111049)", async () => {
+  let release = null;
+  const held = new Promise((r) => { release = r; });
+  await withSites(async ({ h, viewer }) => {
+    const first = post(h, "/api/viewer/test");
+    while (viewer.shots.length === 0) await new Promise((r) => setTimeout(r, 10));
+    const started = Date.now();
+    const rest = await Promise.all(Array.from({ length: 19 }, () => post(h, "/api/viewer/test")));
+    assert.ok(Date.now() - started < 5000, "the refusals do not wait for the render");
+    for (const r of rest) {
+      assert.equal(r.status, 409, r.text);
+      assert.deepEqual(r.json.error, { message: "The page viewer is busy. Try the test again in a minute.", next: "The viewer is taking pictures now.", code: "view_busy" });
+    }
+    release();
+    const done = await first;
+    assert.equal(done.status, 200, done.text);
+    assert.equal(done.json.ok, true);
+    assert.equal(viewer.shots.length, 1, "one Test, one call");
+    const again = await post(h, "/api/viewer/test");
+    assert.equal(again.status, 200, "once the render is done the Test runs again");
+    assert.equal(viewer.shots.length, 2);
+  }, { answer: async (page, n) => { if (n === 1) await held; return good(page); } });
+
+  // 20 at once with nothing running, 200 rounds: each round exactly one runs and 19 are refused (the viewer holds
+  // its answer until the 19 are in, so no round can finish early and let a second Test in).
+  let hold = null;
+  await withSites(async ({ h, viewer }) => {
+    for (let round = 1; round <= 200; round++) {
+      let open = null;
+      hold = new Promise((r) => { open = r; });
+      const answers = [];
+      const all = Array.from({ length: 20 }, () => post(h, "/api/viewer/test").then((r) => { answers.push(r); return r; }));
+      while (answers.length < 19) await new Promise((r) => setTimeout(r, 2));
+      open();
+      const out = await Promise.all(all);
+      assert.deepEqual([out.filter((r) => r.status === 200).length, out.filter((r) => r.status === 409).length], [1, 19], `round ${round}`);
+      assert.equal(viewer.shots.length, round, `round ${round}: one call`);
+    }
+  }, { answer: async (page) => { await hold; return good(page); } });
+
+  // A site's pictures being taken (the agents' queue, unchanged) refuse the Test too; the site's render goes on.
+  let releaseSite = null;
+  const site = new Promise((r) => { releaseSite = r; });
+  await withSites(async ({ h, viewer }) => {
+    const taking = post(h, "/api/tasks/STH-2/sites/launch-a/shots");
+    while (viewer.shots.length === 0) await new Promise((r) => setTimeout(r, 10));
+    const t = await post(h, "/api/viewer/test");
+    assert.equal(t.status, 409, t.text);
+    assert.equal(t.json.error.code, "view_busy");
+    releaseSite();
+    assert.equal((await taking).status, 202);
+    await shotsIdle();
+    assert.deepEqual(viewer.shots.map((x) => x.pages.join(",")), ["index.html", "about.html"], "the site's two pages; the refused Test called nothing");
+  }, { on: true, sites: ["launch-a"], variants: { ...VARIANTS, variants: [VARIANTS.variants[0]] }, answer: async (page, n) => { if (n === 1) await site; return good(page); } });
+});
+
 test("the pick card of three page versions: a sentence until the pictures are kept, then the home server's own", async () => {
   await withSites(async ({ h, viewer }) => {
     const off = await call(h.url, "GET", "/api/tasks/STH-2/pieces");
