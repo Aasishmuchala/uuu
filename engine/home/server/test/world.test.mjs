@@ -214,7 +214,7 @@ test("POST /api/world is not a route, and ten GETs leave the doors' switches fil
     const path = home.config.paths.doorsState;
     const was = readFileSync(path);
     const post = await call(home.url, "POST", "/api/world", { body: { on: true } });
-    assert.equal(post.status, 404);
+    assert.equal(post.status, 405); // a GET-only address: wrong method (S-routes-f430985f)
     for (let i = 0; i < 10; i += 1) assert.equal((await call(home.url, "GET", "/api/world")).status, 200);
     assert.ok(readFileSync(path).equals(was), "the switches file is unchanged");
     assert.deepEqual(writes(home.board), [], "nothing written to the board");

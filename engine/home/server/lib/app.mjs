@@ -168,11 +168,12 @@ export async function createHome(options) {
   // goes out when it ends, or when the client stops sending to wait for an answer, or at a cap past which the
   // connection is closed. Answering while the client is still sending would close the connection under it,
   // and the client would lose the answer.
-  function refuseUnread(req, res, e) {
-    if (req.readableEnded) return sendError(res, e, { connection: "close" });
+  // extra: more headers for the answer (a 405's Allow).
+  function refuseUnread(req, res, e, extra = {}) {
+    if (req.readableEnded) return sendError(res, e, { ...extra, connection: "close" });
     let dropped = 0;
     let idle = null;
-    const answer = () => { clearTimeout(idle); clearTimeout(timer); if (!res.headersSent) sendError(res, e, { connection: "close" }); };
+    const answer = () => { clearTimeout(idle); clearTimeout(timer); if (!res.headersSent) sendError(res, e, { ...extra, connection: "close" }); };
     const timer = setTimeout(() => { answer(); req.destroy(); }, 10000);
     const waitIdle = () => { clearTimeout(idle); idle = setTimeout(answer, 500); };
     req.on("data", (c) => {
@@ -259,6 +260,15 @@ export async function createHome(options) {
     }
 
     const m = router.match(method, pathname);
+    if (m && m.allowed) {
+      // The address exists under another method: 405 with Allow (S-routes-f430985f). It comes after the host, seat
+      // and same-origin checks, as a 404 did, and a body is never read. HEAD on a GET route is a 405 too (the GET is
+      // not run for it).
+      const wrong = new HomeError(405, "This address does not take that kind of request.", "Use the home screen itself to do this.", "wrong_method");
+      const allow = { allow: [...new Set(m.allowed)].join(", ") };
+      if (SAFE_METHODS.has(method)) return sendError(res, wrong, allow);
+      return refuseUnread(req, res, wrong, allow);
+    }
     if (!m || !m.handler) {
       if (SAFE_METHODS.has(method)) return sendError(res, notFound());
       return refuseUnread(req, res, notFound());

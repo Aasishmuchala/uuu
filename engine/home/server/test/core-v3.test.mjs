@@ -165,11 +165,14 @@ test("20 MB to an unknown address is answered 404, before the body is read", asy
   const full = await rawSend(h.port, { path: "/api/nowhere", total: 20 * MB, headers });
   assert.equal(full.status, 404);
 
-  // an address outside /api/ and a route that knows only GET are refused the same way
+  // an address outside /api/ is refused the same way; a route that knows only GET is 405 (S-routes-f430985f), its
+  // body unread the same way
   const page = await rawSend(h.port, { path: "/some/page", total: 20 * MB, sendFirst: 1 * MB, headers });
   assert.equal(page.status, 404);
   const getOnly = await rawSend(h.port, { path: "/api/health", total: 20 * MB, sendFirst: 1 * MB, headers });
-  assert.equal(getOnly.status, 404);
+  assert.equal(getOnly.status, 405);
+  assert.equal(getOnly.json.error.code, "wrong_method");
+  assert.ok(getOnly.sentAtAnswer <= 1 * MB);
 
   // the home screen still answers afterwards
   assert.equal((await call(h.url, "GET", "/healthz")).status, 200);
