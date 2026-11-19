@@ -92,6 +92,11 @@ export function chromeOf(view) {
   return { found, version, line };
 }
 
+// Whether the viewer process is not running, whatever the switch says: the panel's notice says so once.
+export function doorNotRunning(view) {
+  return doorState(obj(view) ? view.door : null).state !== "on";
+}
+
 // Why the switch cannot be turned on, one sentence per blocker, in the order the server gives them.
 export function blockerLines(view) {
   const v = obj(view) ? view : {};
@@ -236,10 +241,9 @@ function Answer({ result }) {
 function SwitchRow({ view, busy, act, failure }) {
   const on = Boolean(view.on);
   const locked = !on && !view.canSwitchOn;
-  const reasons = blockerLines(view);
   const door = doorState(view.door);
-  // The one warning of the panel: the viewer not running while the switch is on. No Chrome is said by Chrome's row.
-  const warned = on && door.state !== "on" ? html`<${Said} text=${door.sentence} />` : null;
+  // The viewer not running is said once, by the notice at the top of the panel, so the list leaves it out.
+  const reasons = blockerLines(view).filter((r) => !(doorNotRunning(view) && r === door.sentence));
   return html`
     <${Row} icon="power" title=${WORDS.switchLabel}
       say=${html`${busy === "switch" ? WORDS.switching : switchLine(on)}
@@ -247,7 +251,7 @@ function SwitchRow({ view, busy, act, failure }) {
           items=${reasons.map((r) => ({ done: false, text: html`<${Said} text=${r} />` }))} />` : null}`}
       control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
         onChange=${(next) => act("switch", "/api/viewer/switch", { on: next }, switchLine(next))} />`}
-      warned=${warned} />
+      />
     <${More}><${Failure} failure=${failure} where="switch" /><//>`;
 }
 
@@ -255,9 +259,8 @@ function SwitchRow({ view, busy, act, failure }) {
 function ViewerRow({ view }) {
   const door = doorState(view.door);
   const f = todayFigures(view);
-  // While the switch is on and the viewer is not running, the panel's warning already says so, in the same words;
-  // while it is off and its list of what to do first says the viewer's sentence, that list says it.
-  const said = !(view.on && door.state !== "on") && !(!view.on && !view.canSwitchOn && blockerLines(view).includes(door.sentence));
+  // The viewer not running is said once, by the notice at the top of the panel.
+  const said = !doorNotRunning(view);
   // The live state (a page being opened now) is a second chip in the row's head; the counts are a strip.
   return html`<${Row} icon="eye" title="The page viewer" state=${[doorChip(view), view.busy ? { tone: "neutral", text: WORDS.busyChip } : null]}
     say=${html`${said ? html`<${Said} text=${door.sentence} />` : null}
@@ -345,6 +348,7 @@ export default function ViewerSection() {
     ${state === "restart" ? html`<div class="p-settings-viewer__state"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
     ${state === "error" ? html`<div class="p-settings-viewer__state"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
     ${ready && view.problem ? html`<div class="p-settings-viewer__state"><${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//></div>` : null}
+    ${ready && doorNotRunning(view) ? html`<div class="p-settings-viewer__state"><${Notice} tone="warn"><${Line}>${doorState(view.door).sentence}<//><//></div>` : null}
     ${ready ? html`<${Group}>
       <${Rows}>
         <${SwitchRow} view=${view} busy=${busy} act=${act} failure=${failure} />

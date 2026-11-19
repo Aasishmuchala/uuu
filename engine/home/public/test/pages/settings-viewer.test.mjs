@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Section, {
-  DOOR, PROBLEMS, WORDS, blockerLines, chromeOf, doorState, doorWord, heroMark, isOpen, plain, problemLine, sectionState, statusLine, switchLine,
+  DOOR, PROBLEMS, WORDS, blockerLines, chromeOf, doorNotRunning, doorState, doorWord, heroMark, isOpen, plain, problemLine, sectionState, statusLine, switchLine,
   testMark, testResult, todayFigures,
 } from "../../pages/settings-viewer.js";
 import { BLOCKER_SENTENCES, DOOR_SENTENCES, PROBLEM_SENTENCES } from "../../../server/routes/viewer.mjs";
@@ -237,8 +237,9 @@ test("viewer mounted: the switch sends on; Test shows its sentence and its two p
 test("viewer mounted: the viewer off says so with its command; no Chrome says so; a 404 says to restart", async () => {
   let m = await mount(() => ({ status: 200, body: view({ door: { state: "off", sentence: DOOR_SENTENCES.off }, chrome: { found: null, version: null }, blockers: ["door_off"] }) }));
   try {
-    assert.match(textOf(m.root), /It can be switched on when these are done:/);
+    assert.doesNotMatch(textOf(m.root), /It can be switched on when these are done:/, "the list had only the viewer's sentence, which the notice says");
     assert.match(textOf(m.root), /The page viewer is off\. Run:/);
+    assert.equal(textOf(m.root).split("The page viewer is off. Run:").length - 1, 1, "said once, with the switch off (stress S-faults-20910b81)");
     assert.ok(elements(m.root).some((e) => e.localName === "code" && textOf(e) === "engine start"));
     assert.match(textOf(m.root), /It can be tested once the page viewer is running\./);
   } finally {
@@ -309,4 +310,11 @@ test("fix rounds R5 and R6: the pictures at most 160 px tall in the framed well;
   assert.match(src, /state=\$\{\[doorChip\(view\), view\.busy \? \{ tone: "neutral", text: WORDS\.busyChip \} : null\]\}/);
   assert.match(src, /tone=\$\{toneOf\(result\.tone\) === "good" \? "neutral" : toneOf\(result\.tone\)\} icon=/, "a success's check is not green");
   assert.match(src, /chrome\.found \? \{ tone: "neutral", text: "Found" \}/, "the usual case takes no colour");
+});
+
+test("viewer: the viewer not running is said once whatever the switch says, and not when it runs (stress S-faults-20910b81)", () => {
+  assert.equal(doorNotRunning(view({ on: false, door: { state: "off", sentence: DOOR_SENTENCES.off } })), true);
+  assert.equal(doorNotRunning(view({ on: true, door: { state: "off", sentence: DOOR_SENTENCES.off } })), true);
+  assert.equal(doorNotRunning(view({ door: { state: "on", sentence: DOOR_SENTENCES.on } })), false);
+  assert.equal(doorNotRunning(null), true);
 });
