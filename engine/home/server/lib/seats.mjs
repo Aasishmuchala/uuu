@@ -170,17 +170,23 @@ export function inboxSeatMay(seat, source, item, action) {
 // a model, not a parser: a comment that looks the same is the same order. So a seat's note may not hold either
 // (REVIEW-DESKTOP M1, S1, T1), and is held to plain English letters. The only person at a seat is the owner, who
 // writes English, so the check is strict rather than a table of lookalikes that is never finished:
-//   1. what a reader would decode is decoded first: HTML entities and \u or \x escapes (three times, for one inside
-//      another); a note that is JSON is also checked string by string after JSON.parse (seatNoteError);
+//   1. what a reader would decode is decoded first: HTML entities (three times, for one inside another), and for the
+//      order search only, \u and \x escapes too (so a Windows path such as C:\xdev is not read as an escape by the
+//      letters rule); a note that is JSON is also checked string by string after JSON.parse (seatNoteError);
 //   2. every invisible character goes: default-ignorable code points (joiners, the bidi controls that turn text
 //      round, tag characters), the Hangul fillers, controls;
 //   3. after NFKD with the combining marks dropped, a letter or digit outside Basic Latin, or a letter in a box, a
 //      circle or a flag (the enclosed and letter-like blocks), is refused with its own sentence (LETTERS_ONLY);
 //   4. what is left is folded to a skeleton (only letters and digits, in capitals; @ and () read as A and O, | 1 I
-//      and L as one, 0 as O, 3 as E, and a few more) and searched for either order, forwards and backwards.
+//      and L as one, 0 as O, 3 as E, and a few more; a letter from an escape outside Basic Latin, or a typed ~, may
+//      stand for any letter) and searched for either order, forwards and backwards (PLACE_ORDER).
+// Near spellings in plain characters (SHOTL!ST, ANOTHER ROVND) are not stopped here; the Chief of staff's role counts
+// the owner's line only when it is the engine's text letter for letter (REVIEW-DESKTOP U1).
 // This refuses plain words such as "not another round yet" from a seat too: the safe side ("when unsure: MAC_ONLY").
 export const LETTERS_ONLY = "From the PC, notes can use plain English letters only. Write it on the Mac to use other letters.";
 export const lettersOnly = () => new HomeError(403, LETTERS_ONLY, MAC_ONLY_HINT, "mac_only");
+export const PLACE_ORDER = "From the PC, a note cannot place this order. Do it on the Mac.";
+export const placeOrder = () => new HomeError(403, PLACE_ORDER, MAC_ONLY_HINT, "mac_only");
 
 const NAMED = Object.freeze({
   nbsp: " ", amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", ensp: " ", emsp: " ", thinsp: " ", hyphen: "-", dash: "-",
@@ -191,11 +197,13 @@ const NAMED = Object.freeze({
 // An entity or escape that is not a plain character becomes one no plain note holds, so the letters rule refuses it.
 const NOT_PLAIN_CHAR = "\u{1F1E6}";
 const fromCode = (n) => (Number.isInteger(n) && n >= 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : NOT_PLAIN_CHAR);
-function decodeOnce(text) {
-  return text
+function decodeOnce(text, escapes) {
+  const out = text
     .replace(/&#[xX]([0-9a-fA-F]{1,6});?/g, (_, h) => fromCode(parseInt(h, 16)))
     .replace(/&#([0-9]{1,7});?/g, (_, d) => fromCode(parseInt(d, 10)))
-    .replace(/&([A-Za-z][A-Za-z0-9]{1,31});/g, (_, n) => (Object.hasOwn(NAMED, n.toLowerCase()) ? NAMED[n.toLowerCase()] : NOT_PLAIN_CHAR))
+    .replace(/&([A-Za-z][A-Za-z0-9]{1,31});/g, (_, n) => (Object.hasOwn(NAMED, n.toLowerCase()) ? NAMED[n.toLowerCase()] : NOT_PLAIN_CHAR));
+  if (!escapes) return out;
+  return out
     .replace(/\\u\{([0-9a-fA-F]{1,6})\}/g, (_, h) => fromCode(parseInt(h, 16)))
     .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => fromCode(parseInt(h, 16)))
     .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => fromCode(parseInt(h, 16)));
@@ -203,11 +211,12 @@ function decodeOnce(text) {
 const BREAKS = /\r\n?|[\n\t\u0085\u2028\u2029]/g;
 const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cc}\p{Cf}\u115F\u1160\u3164\uFFA0]/gu;
 
-// The note as a reader would take it: decoded, invisible characters gone, NFKD with the combining marks dropped.
-function plainOf(text) {
+// The note as a reader would take it: decoded (with \u and \x escapes when `escapes`), invisible characters gone,
+// NFKD with the combining marks dropped.
+function plainOf(text, escapes = false) {
   let s = String(text ?? "");
   for (let i = 0; i < 3; i++) {
-    const next = decodeOnce(s);
+    const next = decodeOnce(s, escapes);
     if (next === s) break;
     s = next;
   }
@@ -224,15 +233,18 @@ export function plainLettersOnly(text) {
 // After the letters are capitals: characters a reader takes for one another, made one.
 const SKELETON = Object.freeze({ "0": "O", "1": "L", "I": "L", "|": "L", "3": "E", "4": "A", "@": "A", "5": "S", "$": "S", "7": "T", "8": "B" });
 
-// A text's skeleton: plainOf, capitals, "()" read as O, the lookalikes made one, then only letters and digits kept.
+// A text's skeleton: plainOf with escapes, capitals, "()" read as O, the lookalikes made one, a letter outside Basic
+// Latin (only an escape can bring one this far) made "~", then only letters, digits and "~" kept.
 export function foldMarkers(text) {
-  return plainOf(text).toUpperCase().replace(/\(\s*\)/g, "O").replace(/[0134@57$8I|]/g, (c) => SKELETON[c])
-    .replace(/[^\p{L}\p{N}]/gu, "");
+  return plainOf(text, true).toUpperCase().replace(/\(\s*\)/g, "O").replace(/[0134@57$8I|]/g, (c) => SKELETON[c])
+    .replace(/[^\P{L}A-Z]/gu, "~").replace(/[^\p{L}\p{N}~]/gu, "");
 }
 const backwards = (s) => [...s].reverse().join("");
 // Each order forwards, and backwards (written in reverse behind a right-to-left override, which plainOf drops).
-const PRICED_MARKERS = Object.freeze(["ANOTHER ROUND", "SHOTLIST ACCEPTED"].map(foldMarkers).flatMap((m) => [m, backwards(m)]));
-const holdsMarker = (text) => { const folded = foldMarkers(text); return PRICED_MARKERS.some((m) => folded.includes(m)); };
+// Each marker as a pattern in which "~" may stand for any one of its letters.
+const PRICED_MARKERS = Object.freeze(["ANOTHER ROUND", "SHOTLIST ACCEPTED"].map(foldMarkers).flatMap((m) => [m, backwards(m)])
+  .map((m) => new RegExp([...m].map((c) => `[${c}~]`).join(""), "u")));
+const holdsMarker = (text) => { const folded = foldMarkers(text); return PRICED_MARKERS.some((m) => m.test(folded)); };
 
 // Every string inside a value parsed from JSON, keys included, at most 2,000 of them, 20 levels deep.
 function stringsIn(value, out = [], depth = 0) {
@@ -253,7 +265,7 @@ export function seatNoteError(seat, note) {
     try { texts.push(...stringsIn(JSON.parse(raw))); } catch { /* not JSON: the note alone */ }
   }
   if (texts.some((t) => !plainLettersOnly(t))) return lettersOnly();
-  if (texts.some(holdsMarker)) return macOnly();
+  if (texts.some(holdsMarker)) return placeOrder();
   return null;
 }
 

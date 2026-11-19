@@ -490,7 +490,8 @@ How it works, in one line: the Mac runs a "remote door" that lets in only the PC
 **What the PC can say, and what each means.**
 
 - "This is done on the Mac." The button is for money, keys or switches. Do it on the Mac.
-- "From the PC, notes can use plain English letters only. Write it on the Mac to use other letters." A note from the PC held a letter from another alphabet or a symbol letter. Write it on the Mac. A note from the PC also may not hold the engine's own orders "another round" or "shotlist accepted", even in passing; ask for more versions by sending the work back in other words.
+- "From the PC, a note cannot place this order. Do it on the Mac." The note held the engine's own order "another round" or "shotlist accepted", even in passing (such as "another rounded button"). Ask for more versions by sending the work back in other words, or do it on the Mac.
+- "From the PC, notes can use plain English letters only. Write it on the Mac to use other letters." A note from the PC held a letter from another alphabet or a symbol letter. Write it on the Mac.
 - "This PC is not allowed to open the engine." The PC was removed, or is not allowed yet. Allow it again on the Mac.
 - "The Mac is off, asleep, or not on this network." Wake the Mac, check it is on the same network, and that the door is on (`engine remote status`) and the engine is started.
 - "This PC is not allowed yet. On the Mac, allow it first." Do step 3 above.

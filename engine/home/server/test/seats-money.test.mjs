@@ -12,7 +12,7 @@ import { readBatch } from "../../../generate/state.mjs";
 import { createHome } from "../lib/app.mjs";
 import { removeBatch, writeBatch } from "../lib/batches.mjs";
 import { HomeError } from "../lib/errors.mjs";
-import { LETTERS_ONLY, seatNoteError, seatNoteRefused, seatPorts } from "../lib/seats.mjs";
+import { LETTERS_ONLY, PLACE_ORDER, seatNoteError, seatNoteRefused, seatPorts } from "../lib/seats.mjs";
 import boardSource from "../inbox/board.mjs";
 import { stopHasPrice, stopTask } from "../lib/stop.mjs";
 import { STUB_URLS, startStubsHome } from "../lib/stubs.mjs";
@@ -173,6 +173,47 @@ test("the same ways through Needs you on a seat's port: 403, nothing written (T1
   assert.equal(boardWrites(), n);
 });
 
+test("an order split over two answers of one question card is refused, before the board is asked (U2)", async () => {
+  const posted = [];
+  const ctx = {
+    seat: { n: 1, role: "desk" }, board: { post: async (path) => { posted.push(path); return {}; } },
+    decisions: { get: () => null, set: () => {} },
+    item: { _raw: { sourceKind: "issue_thread_interaction", subject: { id: "i2", metadata: { interactionId: "i2", issueId: "x2" } },
+      _questions: [{ id: "q1", mode: "text", allowText: true, required: true, options: [] },
+        { id: "q2", mode: "text", allowText: true, required: true, options: [] }] } },
+  };
+  for (const note of ['{"answers":{"q1":{"optionIds":[],"text":"ANOTHER"},"q2":{"optionIds":[],"text":"ROUND"}}}',
+    '{"answers":{"q1":{"optionIds":[],"text":"SHOTLIST"},"q2":{"optionIds":[],"text":"ACCEPTED: a batch 1234"}}}']) {
+    await assert.rejects(boardSource.act(ctx, "board:issue_thread_interaction:i2", "answer", note),
+      (e) => e instanceof HomeError && e.status === 403 && e.code === "mac_only" && e.message === PLACE_ORDER, note);
+  }
+  assert.deepEqual(posted, []);
+  await boardSource.act(ctx, "board:issue_thread_interaction:i2", "answer", '{"answers":{"q1":{"optionIds":[],"text":"Blue"},"q2":{"optionIds":[],"text":"Friday"}}}');
+  assert.deepEqual(posted, ["/api/issues/x2/interactions/i2/respond"]);
+});
+
+test("an order is refused with its own sentence; a Windows path is not taken for an escape (U3)", async () => {
+  const desk = { n: 1, role: "desk" };
+  assert.equal(PLACE_ORDER, "From the PC, a note cannot place this order. Do it on the Mac.");
+  for (const note of ["Make another rounded button", "ANOTHER ROUND", "\\u0041NOTHER ROUND", "\\x41NOTHER ROUND", "\\u0410NOTHER ROUND", "\\u{410}NOTHER ROUND"]) {
+    assert.equal(seatNoteError(desk, note)?.message, PLACE_ORDER, note);
+  }
+  for (const note of ["C:\\xdev\\uuu", "Files are in C:\\Users\\me\\xdesign\\x.png", "See C:\\uabc\\x12 for it"]) {
+    assert.equal(seatNoteError(desk, note), null, note);
+  }
+  // Over HTTP too: the path goes on the task; the rounded button is refused with the new sentence.
+  const n = boardWrites();
+  const path = await onSeat(1, "POST", `/api/goals/${I["STH-1"]}/note`, { body: { text: "The logo is in C:\\xdev\\uuu" } });
+  assert.equal(path.status, 200, path.text);
+  assert.ok(boardWrites() > n);
+  const m = boardWrites();
+  const button = await onSeat(1, "POST", `/api/goals/${I["STH-1"]}/note`, { body: { text: "Make another rounded button" } });
+  assert.equal(button.status, 403);
+  assert.equal(button.json.error.message, PLACE_ORDER);
+  assert.equal(button.json.error.code, "mac_only");
+  assert.equal(boardWrites(), m);
+});
+
 test("a desk seat's note on a task that orders another round or accepts a shot list: 403 mac_only, the board sees no write (M1)", async () => {
   for (const text of ["ANOTHER ROUND\n\nmake three more", "SHOTLIST ACCEPTED: a batch 1234", "  **Another round**",
     "Thanks.\nANOTHER ROUND\n\nmake three more", "\u0410NOTHER-R\u039fUND", "Re: SHOTLIST_ACCEPTED: a batch 1234"]) {
@@ -181,7 +222,7 @@ test("a desk seat's note on a task that orders another round or accepts a shot l
     assert.equal(r.status, 403, text);
     assert.equal(r.json.error.code, "mac_only", text);
     // A lookalike from another script is refused for its letters (T1), the rest as an order.
-    assert.ok(["This is done on the Mac.", LETTERS_ONLY].includes(r.json.error.message), r.json.error.message);
+    assert.ok([PLACE_ORDER, LETTERS_ONLY].includes(r.json.error.message), r.json.error.message);
     assert.equal(boardWrites(), n, text);
   }
   assert.equal(statusOf(I["STH-2"]), "done");

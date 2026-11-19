@@ -549,6 +549,9 @@ async function actOn(ctx, itemId, action, note) {
         const refused = seatNoteError(ctx.seat || null, typeof a.otherText === "string" ? a.otherText : "");
         if (refused) throw refused;
       }
+      // And all of them as one, since the task's conversation joins them: an order split over two answers (U2).
+      const joined = seatNoteError(ctx.seat || null, answers.map((a) => (typeof a.otherText === "string" ? a.otherText : "")).join(" "));
+      if (joined) throw joined;
       await send("respond", { answers }, ["answered"]);
       // The owner's own words, for the task's conversation (lib/owner-text.mjs).
       recordOwnerAnswer(ctx.decisions, qIssue, answers.map((a) => a.otherText || ""));
