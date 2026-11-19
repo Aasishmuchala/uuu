@@ -1,0 +1,88 @@
+/* Before and after on one frame of the picture's own ratio, fitted to the window. */
+
+.frame {
+  position: relative;
+  width: min(100%, calc(var(--max-h) * var(--ar)));
+  aspect-ratio: var(--ar);
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  user-select: none;
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The render shows to the left of the divider, the made picture to the right. */
+.after {
+  clip-path: inset(0 0 0 var(--pos));
+}
+
+.frame[data-before] .after {
+  visibility: hidden;
+}
+
+.divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--pos);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-on-dark);
+  pointer-events: none;
+}
+
+.divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid var(--color-on-dark);
+  border-radius: var(--radius-full);
+  background: var(--studio-scrim);
+}
+
+.tag {
+  position: absolute;
+  top: var(--spacing-3);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-element);
+  background: var(--studio-scrim-strong);
+  color: var(--color-on-dark);
+  font-size: var(--text-supporting-size);
+  pointer-events: none;
+}
+
+.tagLeft {
+  left: var(--spacing-3);
+}
+
+.tagRight {
+  right: var(--spacing-3);
+}
+
+.range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+
+.frame:has(.range:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

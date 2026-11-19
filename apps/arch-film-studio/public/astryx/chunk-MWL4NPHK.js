@@ -1,0 +1,1 @@
+function t(e,n){return`${e}: ${n}`}function s(e,n,...r){}function a(){let e=new Set;return(n,r,o=r)=>{}}function i(e,n,...r){console.error(t(e,n),...r)}var c=new Set;function u(e,n,r,...o){}export{t as a,s as b,a as c,i as d,u as e};

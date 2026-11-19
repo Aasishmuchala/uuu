@@ -1,7 +1,7 @@
 import type { inferRouterOutputs } from '@trpc/server';
 import {
-  ArrowDown,
-  ArrowUp,
+  ArrowLeft,
+  ArrowRight,
   BookmarkPlus,
   Copy,
   Download,
@@ -9,6 +9,7 @@ import {
   Palette,
   Play,
   Plus,
+  Redo2,
   RotateCcw,
   RotateCw,
   Send,
@@ -34,27 +35,38 @@ import type { AppRouterType } from '../api.ts';
 import { type CutColour, colourCss, colourSteps, cutEnds, isNeutral, NEUTRAL_COLOUR } from '../colour.ts';
 import { GRADES } from '../grades.ts';
 import { derivedLabel, rootClipId, type TimelineItem } from '../timeline.ts';
-import { Section } from './layouts/Section.tsx';
+import {
+  AlertDialog,
+  Banner,
+  Button,
+  Dialog,
+  DialogHeader,
+  EmptyState,
+  Heading,
+  IconButton,
+  NumberInput,
+  ProgressBar,
+  SegmentedControl,
+  SegmentedControlItem,
+  Skeleton,
+  Slider,
+  StatusDot,
+  Tab,
+  TabList,
+  Text,
+  TextArea,
+  TextInput,
+} from './kit.ts';
+import { OPEN_IN_EDIT_KEY } from './LibraryPage.tsx';
 import { libraryUrl, stillThumbUrl, stillViewUrl, useDownload } from './lib/download.ts';
 import { useGradedDownload } from './lib/gradedFilm.ts';
+import { Elapsed } from './parts/Elapsed.tsx';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { MediaGrid } from './parts/MediaGrid.tsx';
+import { OptionSelect } from './parts/OptionSelect.tsx';
+import { StageEmpty, StageFrame } from './parts/Stage.tsx';
 import { trpc } from './trpc.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
-import { ConfirmDialog } from './ui/ConfirmDialog.tsx';
-import { EmptyState } from './ui/EmptyState.tsx';
-import { FilterChips } from './ui/FilterChips.tsx';
-import { NumberInput } from './ui/NumberInput.tsx';
-import { PageHeader } from './ui/PageHeader.tsx';
-import { RenderingStatus } from './ui/RenderingStatus.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { Select } from './ui/Select.tsx';
-import { SkeletonBlock, SkeletonText } from './ui/Skeleton.tsx';
-import { Slider } from './ui/Slider.tsx';
-import { Text } from './ui/Text.tsx';
-import { TextArea } from './ui/TextArea.tsx';
-import { TextInput } from './ui/TextInput.tsx';
 import styles from './EditPage.module.css';
-import studio from './Studio.module.css';
 
 type Project = inferRouterOutputs<AppRouterType>['edit']['project'];
 type Cut = Pick<TimelineItem, 'key' | 'clipId' | 'versionId' | 'sourceStart' | 'duration' | 'colour'>;
@@ -67,8 +79,6 @@ const SUGGESTIONS = [
   'Remember: keep every cut between 3 and 5 seconds',
 ];
 
-const GRADE_OPTIONS = GRADES.map((g) => ({ id: g.id, name: g.name, hint: g.hint }));
-const LOOK_OPTIONS = GRADE_OPTIONS.map((g) => (g.id === 'none' ? { ...g, name: 'No look', hint: 'Only the adjustments below' } : g));
 const ADJUSTMENTS = [
   { id: 'exposure', label: 'Exposure' },
   { id: 'contrast', label: 'Contrast' },
@@ -77,9 +87,16 @@ const ADJUSTMENTS = [
 ] as const;
 const NO_NOTES: string[] = [];
 const signed = (v: number) => (Math.round(v * 100) === 0 ? '0' : `${v > 0 ? '+' : ''}${Math.round(v * 100)}`);
+/** The longest a timeline may grow; the server takes no more. */
+const MAX_CUTS = 24;
 
 function round(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+/** "4.5 s", with figures of one width. */
+function secs(n: number) {
+  return `${round(n)} s`;
 }
 
 function fromServer(p: Project): Draft {
@@ -97,10 +114,21 @@ function fromServer(p: Project): Draft {
   };
 }
 
+/** The clip id the Library's "Open in Edit" asked for, read once and removed. */
+function takeOpenInEdit(): string | null {
+  try {
+    const id = sessionStorage.getItem(OPEN_IN_EDIT_KEY);
+    sessionStorage.removeItem(OPEN_IN_EDIT_KEY);
+    return id && /^[A-Za-z0-9_.:-]{1,128}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export type EditPageProps = {
-  /** Go to the Video tab, when there are no clips yet. */
+  /** Go to the Video screen, when there are no clips yet. */
   onGoToVideo: () => void;
-  /** Whether the Edit tab is the one on screen; a hidden tab loads no video and polls slowly. */
+  /** Whether Edit is the screen on show; a hidden one loads no video and polls slowly. */
   active: boolean;
 };
 
@@ -121,7 +149,7 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
         d.agent !== null ||
         d.derived.some((x) => x.status === 'pending') ||
         d.exports.some((x) => x.status === 'pending');
-      // A hidden tab only checks now and then.
+      // A hidden screen only checks now and then.
       return busy ? (active ? 4000 : 15000) : false;
     },
   });
@@ -152,6 +180,9 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
   const past = useRef<Draft[]>([]);
   const future = useRef<Draft[]>([]);
   const lastTag = useRef<{ tag: string; at: number } | null>(null);
+  // Counts undo-history changes, so the undo and redo buttons know when they can act.
+  const [, setHistoryTick] = useState(0);
+  const bumpHistory = () => setHistoryTick((n) => n + 1);
 
   const adoptServer = useCallback((p: Project) => {
     const server = fromServer(p);
@@ -188,13 +219,14 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
       rev.current = 0;
       past.current = [];
       future.current = [];
+      bumpHistory();
       setSaveError(null);
       setSaveState((st) => (st === 'error' ? 'idle' : st));
     }
     adoptServer(data);
   }, [data, adoptServer]);
 
-  // Coming back to the tab brings in whatever finished while it was hidden.
+  // Coming back to the screen brings in whatever finished while it was hidden.
   const wasActive = useRef(active);
   useEffect(() => {
     if (active && !wasActive.current) void utils.edit.project.invalidate();
@@ -285,6 +317,7 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
         }
         lastTag.current = tag ? { tag, at } : null;
         future.current = [];
+        bumpHistory();
       }
       commit(next, delay);
     },
@@ -304,7 +337,9 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
 
   const [selected, setSelected] = useState<string | null>(null);
   const [removed, setRemoved] = useState<{ cut: Cut; index: number } | null>(null);
-  const [clipLimit, setClipLimit] = useState(CLIP_PAGE);
+  const [panel, setPanel] = useState<'look' | 'editor'>('look');
+  const [bin, setBin] = useState(false);
+  const [playing, setPlaying] = useState<string | null>(null);
 
   const clips = useMemo(() => data?.clips ?? [], [data?.clips]);
   const items = draft?.items ?? [];
@@ -340,7 +375,7 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
   const total = round(items.reduce((s, c) => s + c.duration, 0));
 
   // Stable for the life of the page (they read the draft from its ref), so a
-  // change to one cut re-renders that cut's row and nothing else in the list.
+  // change to one cut re-renders that cut and nothing else.
   const update = useCallback(
     (key: string, patch: Partial<Cut>, delay?: number) => {
       const d = draftRef.current;
@@ -396,13 +431,48 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
     setRemoved(null);
     change({ ...d, items: next }, 300);
   };
-  const add = (clipId: string, seconds: number) => {
-    const d = draftRef.current;
-    if (!d) return;
-    const cut: Cut = { key: crypto.randomUUID(), clipId, sourceStart: 0, duration: seconds };
-    setSelected(cut.key);
-    change({ ...d, items: [...d.items, cut] }, 300);
-  };
+  const add = useCallback(
+    (clipId: string, seconds: number) => {
+      const d = draftRef.current;
+      if (!d) return;
+      const cut: Cut = { key: crypto.randomUUID(), clipId, sourceStart: 0, duration: seconds };
+      setSelected(cut.key);
+      setPanel('look');
+      change({ ...d, items: [...d.items, cut] }, 300);
+    },
+    [change]
+  );
+
+  // The first cut is picked when the screen opens, so the Look tab has something to show.
+  const pickedFirst = useRef(false);
+  useEffect(() => {
+    if (pickedFirst.current || !draft) return;
+    pickedFirst.current = true;
+    setSelected((s) => s ?? draft.items[0]?.key ?? null);
+  }, [draft]);
+
+  // The Library's "Open in Edit": the clip goes on the end of the timeline once the project is
+  // in, or, when it is there already, its cut is picked. Nothing is sent but the timeline's save.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!active) {
+      opened.current = false;
+      return;
+    }
+    if (opened.current || !draft || !data) return;
+    opened.current = true;
+    const id = takeOpenInEdit();
+    if (!id) return;
+    const clip = clipById.get(id);
+    if (!clip) return;
+    const there = draft.items.find((c) => c.clipId === id);
+    if (there) {
+      setSelected(there.key);
+      setPanel('look');
+    } else if (draft.items.length < MAX_CUTS && !locked) {
+      add(clip.id, clip.seconds);
+    }
+  }, [active, draft, data, clipById, locked, add]);
 
   // Going back to an earlier state keeps each cut's version as the server has it now.
   const restore = useCallback(
@@ -429,6 +499,7 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
       return;
     }
     future.current = [...future.current.slice(-(HISTORY_MAX - 1)), cur];
+    bumpHistory();
     restore(prev);
   }, [restore]);
   const redo = useCallback(() => {
@@ -439,6 +510,7 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
       return;
     }
     past.current = [...past.current.slice(-(HISTORY_MAX - 1)), cur];
+    bumpHistory();
     restore(next);
   }, [restore]);
 
@@ -462,9 +534,9 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
       e.preventDefault();
       if (!lockedRef.current) remove(target);
       timelineRef.current?.focus();
-    } else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    } else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowRight')) {
       e.preventDefault();
-      move(target, e.key === 'ArrowUp' ? -1 : 1);
+      move(target, e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1);
     }
   };
 
@@ -481,257 +553,436 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
       if (!(await flush())) return;
       await exportFilm.mutateAsync();
     } catch {
-      // The notice under the button shows the error.
+      // The notice under the top bar shows the error.
     } finally {
       setExporting(false);
     }
   };
   const anyPending = data?.timeline.some((t) => t.pendingId) ?? false;
   const latestExport = data?.exports[0];
+  const selectedIndex = items.findIndex((c) => c.key === selected);
+  const selectedCut = selectedIndex >= 0 ? items[selectedIndex] : undefined;
 
-  return (
-    <>
-      <div className={studio.layout}>
-        <div className={studio.controls}>
-          <PageHeader
-            title="Edit the film"
-            description="Lay your clips on a timeline, trim and grade them, and talk to the AI editor to shape the cut."
-          />
-          <Section step={1} title="Your clips" description="Add finished clips from the Video tab to the timeline.">
-            {project.isLoading ? (
-              <SkeletonBlock height={140} />
-            ) : project.error ? (
-              <RunwayErrorNotice error={project.error} modelName="your edit" onRetry={() => void project.refetch()} />
-            ) : clips.length === 0 ? (
-              <EmptyState
-                title="No clips yet"
-                hint="Make a video from one of your stills first, then come back to cut it into a film."
-                action={<Button onPress={onGoToVideo}>Go to Video</Button>}
-              />
-            ) : (
-              <ul className={styles.clipGrid}>
-                {clips.slice(0, clipLimit).map((c) => (
-                  <li key={c.id} className={styles.clipCard}>
-                    <img src={stillThumbUrl(c.stillId)} alt="" className={styles.clipThumb} loading="lazy" decoding="async" />
-                    <span className={styles.clipMeta}>
-                      <Text size="sm" className={styles.clipLabel}>
-                        {c.label || 'Clip'}
-                      </Text>
-                      <Text size="sm" tone="muted">
-                        {c.seconds}s
-                      </Text>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon={<Plus size={14} />}
-                      aria-label={`Add to timeline: ${c.label}`}
-                      onPress={() => add(c.id, c.seconds)}
-                      disabled={items.length >= 24 || locked}
-                    />
-                  </li>
-                ))}
-                {clips.length > clipLimit && (
-                  <li className={styles.showMore}>
-                    <Button size="sm" variant="ghost" onPress={() => setClipLimit((n) => n + CLIP_PAGE)}>
-                      {`Show more (${clips.length - clipLimit} more)`}
-                    </Button>
-                  </li>
-                )}
-              </ul>
-            )}
-          </Section>
+  // ---- The top bar: where the cut stands, undo and redo, and Export with its words.
+  const topBar = (
+    <header className={styles.top}>
+      <div className={styles.topStart}>
+        <Heading level={2}>The cut</Heading>
+        <Text type="supporting" hasTabularNumbers>
+          {items.length
+            ? `${items.length} ${items.length === 1 ? 'cut' : 'cuts'}, ${secs(total)}, ${draft?.transition === 'fade' ? `${draft.fadeSeconds} s fades` : 'hard cuts'}`
+            : 'Nothing on the timeline yet'}
+        </Text>
+        <span className={styles.saveNote} role="status">
+          <SaveNote state={saveState} error={saveError} onRetry={retrySave} />
+        </span>
+      </div>
+      <div className={styles.topEnd}>
+        <IconButton
+          label="Undo"
+          tooltip="Undo (Cmd+Z, with the timeline focused)"
+          size="sm"
+          variant="ghost"
+          icon={<Undo2 size={16} />}
+          isDisabled={past.current.length === 0 || locked}
+          onClick={undo}
+        />
+        <IconButton
+          label="Redo"
+          tooltip="Redo (Cmd+Shift+Z, with the timeline focused)"
+          size="sm"
+          variant="ghost"
+          icon={<Redo2 size={16} />}
+          isDisabled={future.current.length === 0 || locked}
+          onClick={redo}
+        />
+        <span className={styles.divider} aria-hidden />
+        <Text type="supporting">
+          {anyPending ? 'A cut is still re-rendering; export once it is done.' : 'Exporting runs on this Mac.'}
+        </Text>
+        <Button
+          label={latestExport?.status === 'pending' ? 'Exporting…' : 'Export film'}
+          variant="primary"
+          size="sm"
+          icon={<Film size={16} />}
+          isLoading={exporting || exportFilm.isPending}
+          isDisabled={!items.length || anyPending || latestExport?.status === 'pending' || locked}
+          onClick={() => void runExport()}
+        />
+      </div>
+    </header>
+  );
 
-          <Section
-            step={2}
-            title="Timeline"
-            description={
-              items.length
-                ? `${items.length} ${items.length === 1 ? 'cut' : 'cuts'}, ${total}s. Pick a cut to trim, grade or edit it.`
-                : undefined
-            }
+  // ---- The timeline: width is time.
+  const ticks = useMemo(() => {
+    if (total <= 0) return [];
+    const every = total <= 12 ? 1 : total <= 40 ? 5 : total <= 120 ? 10 : 30;
+    const out: { at: number; label: string | null }[] = [];
+    for (let t = 0; t <= total + 1e-6; t += every) {
+      const labelEvery = every === 1 ? 2 : 1;
+      out.push({ at: t / total, label: Math.round(t / every) % labelEvery === 0 ? `${t} s` : null });
+    }
+    return out;
+  }, [total]);
+
+  const timeline = (
+    <section className={styles.timeline} aria-label="Timeline">
+      <div className={styles.timelineHead}>
+        <Text type="label">Timeline</Text>
+        {draft && (
+          <SegmentedControl
+            label="Transition between cuts"
+            size="sm"
+            value={draft.transition}
+            onChange={(v: string) => change({ ...draft, transition: v as Draft['transition'] }, 300)}
+            isDisabled={locked}
           >
-            {!draft ? (
-              <SkeletonText rows={3} />
-            ) : items.length === 0 ? (
-              <EmptyState
-                title="The timeline is empty"
-                hint="Add a clip above, or ask the AI editor to cut a film for you."
-              />
-            ) : (
-              <>
-                {locked && (
-                  <Text size="sm" tone="muted" as="p" className={styles.lockNote}>
-                    The AI editor is changing the timeline.
-                  </Text>
-                )}
-                <div ref={timelineRef} tabIndex={-1} className={styles.timelineBox} onKeyDown={onTimelineKey}>
-                  <ul className={styles.strip} aria-label="Timeline overview">
-                    {items.map((c, i) => (
-                      <li
-                        key={c.key}
-                        className={styles.segmentItem}
-                        data-cutkey={c.key}
-                        style={{ flexGrow: Math.max(0.5, c.duration) }}
-                      >
-                        <button
-                          type="button"
-                          className={styles.segment}
-                          data-selected={selected === c.key || undefined}
-                          data-pending={serverByKey.get(c.key)?.pendingId ? true : undefined}
-                          onClick={() => toggle(c.key)}
-                          aria-pressed={selected === c.key}
-                          aria-label={`Cut ${i + 1}, ${round(c.duration)} seconds`}
-                        >
-                          {i + 1}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <ol className={styles.cuts}>
-                    {items.map((c, i) => (
-                      <CutRow
-                        key={c.key}
-                        index={i}
-                        count={items.length}
-                        cut={c}
-                        server={serverByKey.get(c.key)}
-                        notes={data?.notes[c.key] ?? NO_NOTES}
-                        label={clipById.get(c.clipId)?.label ?? 'A clip no longer in your library'}
-                        poster={thumbOf(c.clipId)}
-                        length={secondsById.get(c.versionId ?? c.clipId) ?? 5}
-                        derived={data?.derived ?? NO_DERIVED}
-                        locked={locked}
-                        open={selected === c.key}
-                        onToggle={toggle}
-                        onChange={update}
-                        onColourAll={colourAll}
-                        onMove={move}
-                        onRemove={remove}
-                        flush={flush}
-                      />
-                    ))}
-                  </ol>
-                  <Text size="sm" tone="muted" as="p" className={styles.shortcutHint}>
-                    Shortcuts with the timeline focused: Delete removes the cut, Ctrl+Z undoes, Ctrl+Shift+Z redoes, Alt+Up and Alt+Down move it.
-                  </Text>
-                </div>
-              </>
-            )}
-            {removed && (
-              <div className={styles.undo}>
-                <Text size="sm" tone="secondary">
-                  Cut removed.
-                </Text>
-                <Button size="sm" variant="ghost" icon={<Undo2 size={14} />} disabled={locked} onPress={undoRemove}>
-                  Undo
-                </Button>
-              </div>
-            )}
-          </Section>
-
-          <Section step={3} title="Transitions">
-            {draft && (
-              <div className={studio.stack}>
-                <FilterChips
-                  label="Transition between cuts"
-                  options={[
-                    { id: 'hard', name: 'Hard cuts' },
-                    { id: 'fade', name: 'Fades' },
-                  ]}
-                  value={draft.transition}
-                  onChange={(v) => change({ ...draft, transition: v as Draft['transition'] }, 300)}
-                />
-                {draft.transition === 'fade' && (
-                  <div className={styles.fadeRow}>
-                    <NumberInput
-                      label="Fade length"
-                      unit="s"
-                      value={draft.fadeSeconds}
-                      min={0.1}
-                      max={4.9}
-                      step={0.25}
-                      disabled={locked}
-                      onChange={(v) => change({ ...draft, fadeSeconds: v }, 600, 'fade')}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </Section>
-
-          <div className={studio.actionBar}>
-            <Button
-              variant="primary"
-              className={studio.generate}
-              icon={<Film size={16} />}
-              loading={exporting || exportFilm.isPending}
-              disabled={!items.length || anyPending || latestExport?.status === 'pending' || locked}
-              onPress={() => void runExport()}
-            >
-              {latestExport?.status === 'pending' ? 'Exporting…' : 'Export film'}
-            </Button>
-            <Text tone="muted" size="sm" as="p" className={studio.meta}>
-              <SaveNote state={saveState} error={saveError} onRetry={retrySave} />
-              {anyPending
-                ? ' A cut is still re-rendering; export once it is done.'
-                : ` ${total}s, ${draft?.transition === 'fade' ? `${draft.fadeSeconds}s fades` : 'hard cuts'}. Exporting runs on this Mac.`}
-            </Text>
-            <RunwayErrorNotice error={exportFilm.error} modelName="the export" onRetry={() => void runExport()} />
-          </div>
-        </div>
-
-        <div className={studio.result} data-stage>
-          <Section title="Preview">
-            <Player
-              active={active}
-              items={items}
-              selected={selected}
-              mediaOf={mediaOf}
-              posterOf={posterOf}
-              latestExport={latestExport}
-            />
-          </Section>
-          <Section title="AI editor" description="Tell it what you want, the way you would brief an editor. It changes the timeline for you.">
-            <EditorChat data={data} flush={flush} loading={project.isLoading} />
-          </Section>
-          <Section title="Memory" description="Standing preferences the editor follows in every session.">
-            <Memory memory={data?.memory} loading={project.isLoading} />
-          </Section>
+            <SegmentedControlItem value="hard" label="Hard cuts" />
+            <SegmentedControlItem value="fade" label="Fades" />
+          </SegmentedControl>
+        )}
+        {draft?.transition === 'fade' && (
+          <NumberInput
+            label="Fade length"
+            isLabelHidden
+            size="sm"
+            units="s"
+            value={draft.fadeSeconds}
+            min={0.1}
+            max={4.9}
+            step={0.25}
+            isDisabled={locked}
+            onChange={(v: number) => change({ ...draft, fadeSeconds: v }, 600, 'fade')}
+            width={96}
+          />
+        )}
+        <div className={styles.timelineEnd}>
+          {removed && (
+            <span className={styles.undoRemove}>
+              <Text type="supporting">Cut removed.</Text>
+              <Button label="Undo" size="sm" variant="ghost" icon={<Undo2 size={14} />} isDisabled={locked} onClick={undoRemove} />
+            </span>
+          )}
+          {locked && <Text type="supporting">The AI editor is changing the timeline.</Text>}
+          <Button
+            label="Add clips"
+            size="sm"
+            icon={<Plus size={14} />}
+            isDisabled={locked || clips.length === 0}
+            tooltip={clips.length === 0 ? 'Make a video first' : undefined}
+            onClick={() => setBin(true)}
+          />
         </div>
       </div>
-    </>
+      {project.isLoading || !draft ? (
+        <div className={styles.track}>
+          <Skeleton height={72} />
+        </div>
+      ) : project.error && !data ? (
+        <div className={styles.trackEmpty}>
+          <ErrorNote
+            error={project.error}
+            action={<Button label="Try again" size="sm" variant="ghost" onClick={() => void project.refetch()} />}
+          />
+        </div>
+      ) : items.length === 0 ? (
+        <div className={styles.trackEmpty}>
+          {clips.length === 0 ? (
+            <EmptyState
+              isCompact
+              title="No clips yet"
+              description="Make a video from one of your stills first, then come back to cut it into a film."
+              actions={<Button label="Go to Video" size="sm" onClick={onGoToVideo} />}
+            />
+          ) : (
+            <EmptyState
+              isCompact
+              title="The timeline is empty"
+              description="Add clips, or ask the AI editor to cut a film for you."
+              actions={<Button label="Add clips" size="sm" variant="primary" icon={<Plus size={14} />} onClick={() => setBin(true)} />}
+            />
+          )}
+        </div>
+      ) : (
+        <div ref={timelineRef} tabIndex={-1} className={styles.trackBox} onKeyDown={onTimelineKey}>
+          <div className={styles.ruler} aria-hidden>
+            {ticks.map((t) => (
+              <span key={t.at} className={styles.tick} style={{ left: `${t.at * 100}%` }} data-major={t.label !== null || undefined}>
+                {t.label && <span className={`${styles.tickLabel} num`}>{t.label}</span>}
+              </span>
+            ))}
+          </div>
+          <ol className={styles.track} aria-label="Cuts in order">
+            {items.map((c, i) => (
+              <CutBlock
+                key={c.key}
+                index={i}
+                cut={c}
+                server={serverByKey.get(c.key)}
+                label={clipById.get(c.clipId)?.label || 'A clip no longer in your library'}
+                thumb={thumbOf(c.clipId)}
+                selected={selected === c.key}
+                playing={playing === c.key}
+                onToggle={toggle}
+              />
+            ))}
+          </ol>
+          <Text type="supporting" as="p">
+            With the timeline focused: Delete removes the picked cut, Alt with an arrow moves it, Cmd+Z undoes and
+            Cmd+Shift+Z redoes.
+          </Text>
+        </div>
+      )}
+    </section>
+  );
+
+  // ---- The right panel: Look and Editor.
+  const side = (
+    <aside className={styles.panel} aria-label="Look and editor">
+      <div className={styles.tabs}>
+        <TabList value={panel} onChange={(v: string) => setPanel(v as 'look' | 'editor')} layout="fill" hasDivider>
+          <Tab value="look" label="Look" icon={<Palette size={14} />} />
+          <Tab value="editor" label="Editor" icon={<Send size={14} />} />
+        </TabList>
+      </div>
+      <div className={styles.panelBody}>
+        {panel === 'look' ? (
+          selectedCut ? (
+            <CutPanel
+              key={selectedCut.key}
+              index={selectedIndex}
+              count={items.length}
+              cut={selectedCut}
+              server={serverByKey.get(selectedCut.key)}
+              notes={data?.notes[selectedCut.key] ?? NO_NOTES}
+              label={clipById.get(selectedCut.clipId)?.label || 'A clip no longer in your library'}
+              thumb={thumbOf(selectedCut.clipId)}
+              length={secondsById.get(selectedCut.versionId ?? selectedCut.clipId) ?? 5}
+              derived={data?.derived ?? NO_DERIVED}
+              locked={locked}
+              onChange={update}
+              onColourAll={colourAll}
+              onMove={move}
+              onRemove={remove}
+              flush={flush}
+            />
+          ) : (
+            <div className={styles.panelEmpty}>
+              <EmptyState
+                isCompact
+                title="Pick a cut"
+                description="Choose a cut on the timeline to trim it, give it a look and pick its version."
+              />
+            </div>
+          )
+        ) : (
+          <>
+            <EditorChat data={data} flush={flush} loading={project.isLoading} />
+            <Memory memory={data?.memory} loading={project.isLoading} />
+          </>
+        )}
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className={styles.edit}>
+      {topBar}
+      {exportFilm.error && (
+        <div className={styles.notice}>
+          <ErrorNote error={exportFilm.error} />
+        </div>
+      )}
+      <div className={styles.body}>
+        <div className={styles.main}>
+          <Player
+            active={active}
+            items={items}
+            selected={selected}
+            mediaOf={mediaOf}
+            posterOf={posterOf}
+            latestExport={latestExport}
+            onPlaying={setPlaying}
+          />
+          {timeline}
+        </div>
+        {side}
+      </div>
+      <ClipBin
+        isOpen={bin}
+        onClose={() => setBin(false)}
+        clips={clips}
+        full={items.length >= MAX_CUTS}
+        locked={locked}
+        onAdd={add}
+        onGoToVideo={onGoToVideo}
+      />
+    </div>
   );
 }
 
 function SaveNote({ state, error, onRetry }: { state: string; error: string | null; onRetry: () => void }) {
-  if (state === 'saving' || state === 'unsaved') return <>Saving…</>;
-  if (state === 'saved') return <>Saved.</>;
+  if (state === 'saving' || state === 'unsaved') return <Text type="supporting">Saving…</Text>;
+  if (state === 'saved') return <Text type="supporting">Saved</Text>;
   if (state === 'error')
     return (
-      <>
-        Not saved: {error ?? 'the server did not answer.'}{' '}
-        <button type="button" className={styles.inlineLink} onClick={onRetry}>
-          Try again
-        </button>
-      </>
+      <span className={styles.saveError}>
+        <StatusDot variant="error" label="Not saved" />
+        <Text type="supporting">Not saved: {error ?? 'the server did not answer.'}</Text>
+        <Button label="Try again" size="sm" variant="ghost" onClick={onRetry} />
+      </span>
     );
   return null;
 }
 
-type CutRowProps = {
+/** The clips to cut from: a contact sheet; a click puts one on the end of the timeline. */
+function ClipBin({
+  isOpen,
+  onClose,
+  clips,
+  full,
+  locked,
+  onAdd,
+  onGoToVideo,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  clips: Project['clips'];
+  full: boolean;
+  locked: boolean;
+  onAdd: (clipId: string, seconds: number) => void;
+  onGoToVideo: () => void;
+}) {
+  const [limit, setLimit] = useState(CLIP_PAGE);
+  const [added, setAdded] = useState(0);
+  useEffect(() => {
+    if (isOpen) setAdded(0);
+  }, [isOpen]);
+  return (
+    <Dialog isOpen={isOpen} onOpenChange={(open: boolean) => !open && onClose()} width={880} maxHeight="85dvh">
+      <DialogHeader
+        title="Add clips"
+        subtitle={
+          full
+            ? 'The timeline holds 24 cuts. Remove one to add another.'
+            : added > 0
+              ? `${added} added to the end of the timeline.`
+              : 'Each one you pick goes on the end of the timeline.'
+        }
+        onOpenChange={(open: boolean) => !open && onClose()}
+      />
+      <div className={styles.bin}>
+        {clips.length === 0 ? (
+          <EmptyState
+            isCompact
+            title="No clips yet"
+            description="Make a video from one of your stills first."
+            actions={<Button label="Go to Video" size="sm" onClick={onGoToVideo} />}
+          />
+        ) : (
+          <div data-disabled={full || locked || undefined} className={styles.binGrid}>
+            <MediaGrid
+              label="Your clips"
+              density="small"
+              items={clips.slice(0, limit).map((c) => ({
+                id: c.id,
+                kind: 'clip' as const,
+                thumb: stillThumbUrl(c.stillId),
+                title: c.label || 'Clip',
+                detail: secs(c.seconds),
+                ratio: 16 / 9,
+              }))}
+              onActivate={(id) => {
+                const c = clips.find((x) => x.id === id);
+                if (!c || full || locked) return;
+                onAdd(c.id, c.seconds);
+                setAdded((n) => n + 1);
+              }}
+            />
+          </div>
+        )}
+        {clips.length > limit && (
+          <div>
+            <Button
+              label={`Show ${Math.min(CLIP_PAGE, clips.length - limit)} more`}
+              size="sm"
+              variant="ghost"
+              onClick={() => setLimit((n) => n + CLIP_PAGE)}
+            />
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+type CutBlockProps = {
+  index: number;
+  cut: Cut;
+  server: Project['timeline'][number] | undefined;
+  label: string;
+  thumb: string | undefined;
+  selected: boolean;
+  playing: boolean;
+  onToggle: (key: string) => void;
+};
+
+/** One cut on the timeline, as wide as its seconds. Memoised: editing one cut redraws only it. */
+const CutBlock = memo(function CutBlock({ index, cut, server, label, thumb, selected, playing, onToggle }: CutBlockProps) {
+  const pending = !!server?.pendingId;
+  const steps = colourSteps(cut.colour);
+  const graded = !isNeutral(cut.colour);
+  const state = pending ? 'Re-rendering' : server?.lastError ? 'The last change failed' : null;
+  return (
+    <li className={styles.cutItem} style={{ flexGrow: Math.max(0.5, cut.duration) }} data-cutkey={cut.key}>
+      <button
+        type="button"
+        className={styles.cut}
+        data-selected={selected || undefined}
+        data-playing={playing || undefined}
+        onClick={() => onToggle(cut.key)}
+        aria-pressed={selected}
+        aria-label={`Cut ${index + 1}: ${label}, ${round(cut.duration)} seconds${state ? `, ${state.toLowerCase()}` : ''}`}
+      >
+        <span className={styles.cutThumb}>
+          {thumb && (
+            <img
+              src={thumb}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              style={steps ? { filter: colourCss(steps).filter } : undefined}
+            />
+          )}
+        </span>
+        <span className={styles.cutText}>
+          <span className={styles.cutLabel}>{label}</span>
+          <span className={`${styles.cutMeta} num`}>
+            {secs(cut.duration)}
+            {graded ? `, ${GRADES.find((g) => g.id === cut.colour?.gradeId && g.id !== 'none')?.name.toLowerCase() ?? 'adjusted'}` : ''}
+          </span>
+        </span>
+        {state && (
+          <span className={styles.cutState}>
+            <StatusDot variant={pending ? 'accent' : 'error'} label={state} tooltip={state} isPulsing={pending} />
+          </span>
+        )}
+      </button>
+    </li>
+  );
+});
+
+type CutPanelProps = {
   index: number;
   count: number;
   cut: Cut;
   server: Project['timeline'][number] | undefined;
   notes: string[];
   label: string;
-  poster: string | undefined;
+  thumb: string | undefined;
   length: number;
   derived: Project['derived'];
   locked: boolean;
-  open: boolean;
-  onToggle: (key: string) => void;
   onChange: (key: string, patch: Partial<Cut>, delay?: number) => void;
   onColourAll: (colour: CutColour | undefined) => void;
   onMove: (key: string, by: -1 | 1) => void;
@@ -739,27 +990,24 @@ type CutRowProps = {
   flush: () => Promise<boolean>;
 };
 
-/** One cut on the timeline. Memoised: its callbacks are stable, so editing
- * one cut re-renders only that row. */
-const CutRow = memo(function CutRow({
+/** The picked cut in the Look tab: its trim, its look and adjustments, its version. */
+function CutPanel({
   index,
   count,
   cut,
   server,
   notes,
   label,
-  poster,
+  thumb,
   length,
   derived,
   locked,
-  open,
-  onToggle,
   onChange,
   onColourAll,
   onMove,
   onRemove,
   flush,
-}: CutRowProps) {
+}: CutPanelProps) {
   const utils = trpc.useUtils();
   const pending = !!server?.pendingId;
   // Returned, so a button stays busy until the refetch shows the result.
@@ -773,168 +1021,196 @@ const CutRow = memo(function CutRow({
       ...copies.map((d) => ({
         id: d.id,
         name: derivedLabel(d),
-        hint: `${d.seconds}s, ${new Date(d.createdAt).toLocaleString()}`,
+        hint: `${d.seconds} s, ${new Date(d.createdAt).toLocaleString()}`,
       })),
     ];
   }, [derived, cut.clipId]);
   const canPick = versions.length > 1 || !!cut.versionId || pending;
   const out = round(cut.sourceStart + cut.duration);
   const colour = cut.colour ?? NEUTRAL_COLOUR;
-  const graded = !isNeutral(cut.colour);
-  const thumbSteps = colourSteps(cut.colour);
   const setColour = (patch: Partial<CutColour>) => onChange(cut.key, { colour: { ...colour, ...patch } }, 800);
-  const lookName = GRADES.find((g) => g.id === colour.gradeId)?.name;
   return (
-    <li className={styles.cut} data-open={open || undefined} data-cutkey={cut.key}>
+    <div className={styles.cutPanel}>
       <div className={styles.cutHead}>
-        <button type="button" className={styles.cutMain} onClick={() => onToggle(cut.key)} aria-expanded={open}>
-          <span className={styles.cutNumber}>{index + 1}</span>
-          {poster ? (
-            <img
-              src={poster}
-              alt=""
-              className={styles.cutThumb}
-              loading="lazy"
-              decoding="async"
-              style={thumbSteps ? { filter: colourCss(thumbSteps).filter } : undefined}
-            />
-          ) : (
-            <span className={styles.cutThumb} />
-          )}
-          <span className={styles.cutText}>
-            <span className={styles.cutLabel}>{label}</span>
-            <span className={styles.cutSub}>
-              {cut.sourceStart}s to {out}s ({round(cut.duration)}s)
-              {graded ? `, ${colour.gradeId !== 'none' && lookName ? lookName : 'adjusted'} look` : ''}
-              {notes.length ? `, ${notes.join(', ')}` : ''}
-            </span>
-          </span>
-        </button>
-        <div className={styles.cutTools}>
-          <Button size="sm" variant="ghost" icon={<ArrowUp size={14} />} aria-label={`Move cut ${index + 1} earlier`} disabled={index === 0 || locked} onPress={() => onMove(cut.key, -1)} />
-          <Button size="sm" variant="ghost" icon={<ArrowDown size={14} />} aria-label={`Move cut ${index + 1} later`} disabled={index === count - 1 || locked} onPress={() => onMove(cut.key, 1)} />
-          <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} aria-label={`Remove cut ${index + 1}`} disabled={locked} onPress={() => onRemove(cut.key)} />
+        <span className={styles.cutHeadThumb}>{thumb && <img src={thumb} alt="" />}</span>
+        <div className={styles.cutHeadText}>
+          <Text type="label" maxLines={2}>
+            {label}
+          </Text>
+          <Text type="supporting" hasTabularNumbers>
+            Cut {index + 1} of {count}, {cut.sourceStart} s to {out} s
+            {notes.length ? `, ${notes.join(', ')}` : ''}
+          </Text>
         </div>
       </div>
+      <div className={styles.cutTools}>
+        <Button label="Earlier" size="sm" variant="ghost" icon={<ArrowLeft size={14} />} isDisabled={index === 0 || locked} onClick={() => onMove(cut.key, -1)} />
+        <Button label="Later" size="sm" variant="ghost" icon={<ArrowRight size={14} />} isDisabled={index === count - 1 || locked} onClick={() => onMove(cut.key, 1)} />
+        <Button label="Remove" size="sm" variant="ghost" icon={<Trash2 size={14} />} isDisabled={locked} onClick={() => onRemove(cut.key)} />
+      </div>
+
       {pending && (
-        <Text size="sm" tone="secondary" as="p" className={styles.cutStatus}>
-          <span className={styles.pulse} aria-hidden />
-          Re-rendering this cut. This takes a few minutes; the timeline keeps the old version until it is done.
-          <Button
-            size="sm"
-            variant="ghost"
-            loading={setVersion.isPending}
-            onPress={() => setVersion.mutate({ key: cut.key, versionId: null })}
-          >
-            Use the original
-          </Button>
-        </Text>
+        <Banner
+          status="info"
+          title="Re-rendering this cut"
+          description="This takes a few minutes; the timeline keeps the old version until it is done."
+          endContent={
+            <Button
+              label="Use the original"
+              size="sm"
+              variant="ghost"
+              isLoading={setVersion.isPending}
+              onClick={() => setVersion.mutate({ key: cut.key, versionId: null })}
+            />
+          }
+        />
       )}
       {server?.lastError && !pending && (
-        <Alert tone="error" title="The last change to this cut failed">
-          {server.lastError}
-        </Alert>
+        <Banner status="error" title="The last change to this cut failed" description={server.lastError} />
       )}
-      {open && (
-        <div className={styles.cutBody}>
-          <div className={styles.trimRow}>
-            <NumberInput
-              label="In"
-              unit="s"
-              value={cut.sourceStart}
-              min={0}
-              max={round(Math.max(0, length - 0.5))}
-              disabled={locked}
-              onChange={(v) => {
-                const start = Math.min(v, length - 0.5);
-                onChange(cut.key, { sourceStart: round(start), duration: round(Math.max(0.5, Math.min(out, length) - start)) });
-              }}
-            />
-            <NumberInput
-              label="Out"
-              unit="s"
-              value={out}
-              min={round(cut.sourceStart + 0.5)}
-              max={length}
-              disabled={locked}
-              onChange={(v) => onChange(cut.key, { duration: round(Math.max(0.5, Math.min(v, length) - cut.sourceStart)) })}
-            />
-            <Text size="sm" tone="muted" className={styles.trimNote}>
-              of {length}s
-            </Text>
-          </div>
 
-          <div className={styles.gradeBlock}>
-            <Text size="sm" tone="secondary" as="p">
-              Colour grade
-            </Text>
-            <div className={styles.gradePanel}>
-              <div className={styles.gradeWide}>
-                <Select
-                  label="Look"
-                  options={LOOK_OPTIONS}
-                  value={colour.gradeId}
-                  disabled={locked}
-                  onChange={(id) => onChange(cut.key, { colour: { ...colour, gradeId: id as CutColour['gradeId'] } }, 400)}
-                />
-              </div>
-              <Slider
-                label="Strength"
-                value={colour.strength}
-                onChange={(v) => setColour({ strength: v })}
-                format={(v) => `${Math.round(v * 100)}%`}
-                disabled={colour.gradeId === 'none' || locked}
-              />
-              {ADJUSTMENTS.map((a) => (
-                <Slider
-                  key={a.id}
-                  label={a.label}
-                  value={colour[a.id]}
-                  min={-1}
-                  max={1}
-                  disabled={locked}
-                  onChange={(v) => setColour({ [a.id]: v })}
-                  format={signed}
-                />
-              ))}
-            </div>
-            <div className={styles.gradeActions}>
-              <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} disabled={!cut.colour || locked} onPress={() => onChange(cut.key, { colour: undefined }, 300)}>
-                Reset
-              </Button>
-              <Button size="sm" variant="ghost" icon={<Copy size={14} />} disabled={count < 2 || locked} onPress={() => onColourAll(cut.colour)}>
-                Apply to every cut
-              </Button>
-            </div>
-            <Text size="sm" tone="muted" as="p">
-              Instant and free: the preview shows it as you drag, and it rides along with the export.
-            </Text>
-          </div>
-
-          {canPick && (
-            <div className={styles.versionRow}>
-              <Select
-                label="Version of this cut"
-                options={versions}
-                value={cut.versionId && versions.some((v) => v.id === cut.versionId) ? cut.versionId : 'original'}
-                disabled={locked || setVersion.isPending}
-                onChange={async (id) => {
-                  if (id === (cut.versionId ?? 'original') && !pending) return;
-                  if (!(await flush())) return;
-                  setVersion.mutate({ key: cut.key, versionId: id === 'original' ? null : id });
-                }}
-              />
-              {setVersion.error && <Alert tone="error" title="The version was not changed">{setVersion.error.message}</Alert>}
-              <Text size="sm" tone="muted" as="p">
-                Every finished grade and edit is kept, so you can switch back to any of them.
-              </Text>
-            </div>
-          )}
+      <section className={styles.group}>
+        <Heading level={4}>Trim</Heading>
+        <div className={styles.trim}>
+          <NumberInput
+            label="In"
+            units="s"
+            value={cut.sourceStart}
+            min={0}
+            max={round(Math.max(0, length - 0.5))}
+            step={0.1}
+            isDisabled={locked}
+            onChange={(v: number) => {
+              const start = Math.min(v, length - 0.5);
+              onChange(cut.key, { sourceStart: round(start), duration: round(Math.max(0.5, Math.min(out, length) - start)) });
+            }}
+            width="100%"
+          />
+          <NumberInput
+            label="Out"
+            units="s"
+            value={out}
+            min={round(cut.sourceStart + 0.5)}
+            max={length}
+            step={0.1}
+            isDisabled={locked}
+            onChange={(v: number) => onChange(cut.key, { duration: round(Math.max(0.5, Math.min(v, length) - cut.sourceStart)) })}
+            width="100%"
+          />
         </div>
+        <Text type="supporting" hasTabularNumbers>
+          Of {length} s in the clip.
+        </Text>
+      </section>
+
+      <section className={styles.group}>
+        <Heading level={4}>Look</Heading>
+        <ul className={styles.looks} aria-label="Looks">
+          {GRADES.map((g) => {
+            const steps = colourSteps({ ...colour, gradeId: g.id as CutColour['gradeId'] });
+            const css = steps ? colourCss(steps) : null;
+            const on = colour.gradeId === g.id;
+            return (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  className={styles.look}
+                  aria-pressed={on}
+                  disabled={locked}
+                  title={g.hint}
+                  onClick={() => onChange(cut.key, { colour: { ...colour, gradeId: g.id as CutColour['gradeId'] } }, 400)}
+                >
+                  <span className={styles.lookFrame}>
+                    {thumb && <img src={thumb} alt="" style={css && css.filter !== 'none' ? { filter: css.filter } : undefined} />}
+                    {css?.balance && <span className={styles.balance} style={{ background: css.balance }} aria-hidden />}
+                    {css?.lift && (
+                      <span className={styles.lift} style={{ background: css.lift.color, opacity: css.lift.opacity }} aria-hidden />
+                    )}
+                  </span>
+                  <span className={styles.lookName}>{g.id === 'none' ? 'No look' : g.name}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <Slider
+          label="Strength"
+          value={colour.strength}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v: number) => setColour({ strength: v })}
+          formatValue={(v: number) => `${Math.round(v * 100)}%`}
+          valueDisplay="text"
+          isDisabled={colour.gradeId === 'none' || locked}
+          width="100%"
+        />
+      </section>
+
+      <section className={styles.group}>
+        <Heading level={4}>Adjust</Heading>
+        {ADJUSTMENTS.map((a) => (
+          <Slider
+            key={a.id}
+            label={a.label}
+            value={colour[a.id]}
+            min={-1}
+            max={1}
+            step={0.01}
+            isDisabled={locked}
+            onChange={(v: number) => setColour({ [a.id]: v })}
+            formatValue={signed}
+            valueDisplay="text"
+            width="100%"
+          />
+        ))}
+        <div className={styles.row}>
+          <Button
+            label="Reset"
+            size="sm"
+            variant="ghost"
+            icon={<RotateCcw size={14} />}
+            isDisabled={!cut.colour || locked}
+            onClick={() => onChange(cut.key, { colour: undefined }, 300)}
+          />
+          <Button
+            label="Apply to every cut"
+            size="sm"
+            variant="ghost"
+            icon={<Copy size={14} />}
+            isDisabled={count < 2 || locked}
+            onClick={() => onColourAll(cut.colour)}
+          />
+        </div>
+        <Text type="supporting" as="p">
+          Instant and free: the preview shows it as you drag, and it rides along with the export.
+        </Text>
+      </section>
+
+      {canPick && (
+        <section className={styles.group}>
+          <Heading level={4}>Version</Heading>
+          <OptionSelect
+            label="Version of this cut"
+            labelHidden
+            options={versions}
+            value={cut.versionId && versions.some((v) => v.id === cut.versionId) ? cut.versionId : 'original'}
+            disabled={locked || setVersion.isPending}
+            onChange={async (id) => {
+              if (id === (cut.versionId ?? 'original') && !pending) return;
+              if (!(await flush())) return;
+              setVersion.mutate({ key: cut.key, versionId: id === 'original' ? null : id });
+            }}
+          />
+          {setVersion.error && <Banner status="error" title="The version was not changed" description={setVersion.error.message} />}
+          <Text type="supporting" as="p">
+            Every finished grade and edit is kept, so you can switch back to any of them.
+          </Text>
+        </section>
       )}
-    </li>
+    </div>
   );
-});
+}
 
 /** A player with its built-in grade: the filter on the video, the white
  * balance and lifted blacks as layers over it (src/colour.ts `colourCss`). */
@@ -957,15 +1233,16 @@ type PlayerProps = {
   mediaOf: (c: Cut) => string;
   posterOf: (clipId: string) => string | undefined;
   latestExport: Project['exports'][number] | undefined;
+  /** The cut playing while the whole timeline plays, or null. */
+  onPlaying: (key: string | null) => void;
 };
 
 /**
- * Plays the picked cut within its trim, the whole timeline in order, or the
- * latest export. While the timeline plays, the next cut is already loading in
- * a hidden player seeked to its in point, so each cut starts the moment the
- * one before it ends.
+ * The viewer: plays the picked cut within its trim, the whole timeline in order, or the
+ * latest export. While the timeline plays, the next cut is already loading in a hidden
+ * player seeked to its in point, so each cut starts the moment the one before it ends.
  */
-function Player({ active, items, selected, mediaOf, posterOf, latestExport }: PlayerProps) {
+function Player({ active, items, selected, mediaOf, posterOf, latestExport, onPlaying }: PlayerProps) {
   const videos = useRef(new Map<string, HTMLVideoElement>());
   const [mode, setMode] = useState<'cut' | 'timeline' | 'export'>('cut');
   const [at, setAt] = useState(0);
@@ -989,6 +1266,10 @@ function Player({ active, items, selected, mediaOf, posterOf, latestExport }: Pl
     mode === 'timeline'
       ? (items[at] ?? items[0])
       : (items.find((c) => c.key === selected) ?? items[0]);
+  const playingKey = mode === 'timeline' && cut ? cut.key : null;
+  useEffect(() => {
+    onPlaying(playingKey);
+  }, [playingKey, onPlaying]);
   const exportSrc = exportReady ? libraryUrl('edit', latestExport.finalId!) : null;
   const exportGrades = latestExport?.grades ?? [];
   const exportGraded = exportGrades.some((g) => !isNeutral(g.colour));
@@ -1040,176 +1321,179 @@ function Player({ active, items, selected, mediaOf, posterOf, latestExport }: Pl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, at, cut?.key, cut?.sourceStart, cut?.duration, items.length]);
 
-  if (!exportSrc && !cut) {
-    return (
-      <div className={studio.resultFrame} style={{ aspectRatio: '16 / 9', ['--ar' as string]: '16 / 9' }}>
-        <EmptyState title="Nothing to play yet" hint="Add a clip to the timeline and it plays here." />
-      </div>
-    );
-  }
+  const note =
+    mode === 'export'
+      ? `The exported film, ${latestExport?.seconds} s, ${latestExport?.cuts} cuts.`
+      : mode === 'timeline'
+        ? `Playing cut ${at + 1} of ${items.length}, with its look. The preview plays hard cuts; fades appear in the export.`
+        : cut
+          ? `Cut ${items.indexOf(cut) + 1}, ${cut.sourceStart} s to ${round(cut.sourceStart + cut.duration)} s.`
+          : '';
+
   return (
-    <>
-      <div className={studio.resultFrame} style={{ aspectRatio: '16 / 9', ['--ar' as string]: '16 / 9' }}>
-        {!active ? null : mode === 'export' && exportSrc ? (
-          <Graded colour={exportGrades[exportCut]?.colour}>
-            <video
-              key={exportSrc}
-              src={exportSrc}
-              controls
-              playsInline
-              muted
-              preload="metadata"
-              onTimeUpdate={(e) => trackExport(e.currentTarget)}
-              onSeeked={(e) => trackExport(e.currentTarget)}
-              aria-label="Exported film"
-            />
-          </Graded>
+    <section className={styles.viewer} aria-label="Viewer">
+      <div className={styles.screen}>
+        {!exportSrc && !cut ? (
+          <StageEmpty title="Nothing to play yet" hint="Add a clip to the timeline and it plays here." />
         ) : (
-          layers.map((c, i) => {
-            const k = slot(c);
-            const shown = i === 0;
-            return (
-              <Graded key={k} colour={c.colour} hidden={!shown}>
-              <video
-                ref={(el) => {
-                  if (el) videos.current.set(k, el);
-                  else videos.current.delete(k);
-                }}
-                aria-hidden={shown ? undefined : true}
-                src={mediaOf(c)}
-                poster={posterOf(c.clipId)}
-                controls={shown && mode === 'cut'}
-                playsInline
-                muted
-                // Only the hidden next cut of a playing timeline loads ahead.
-                preload={shown ? 'metadata' : 'auto'}
-                onLoadedMetadata={(e) => {
-                  e.currentTarget.currentTime = c.sourceStart;
-                  if (shown && mode === 'timeline') void e.currentTarget.play().catch(() => undefined);
-                }}
-                onTimeUpdate={(e) => {
-                  const v = e.currentTarget;
-                  if (shown && mode === 'cut' && v.currentTime >= c.sourceStart + c.duration) v.pause();
-                }}
-                aria-label={shown ? 'Cut preview' : undefined}
-              />
-              </Graded>
-            );
-          })
+          <StageFrame ratio={16 / 9}>
+            <div className={styles.layers}>
+              {!active ? null : mode === 'export' && exportSrc ? (
+                <Graded colour={exportGrades[exportCut]?.colour}>
+                  <video
+                    key={exportSrc}
+                    src={exportSrc}
+                    controls
+                    playsInline
+                    muted
+                    preload="metadata"
+                    onTimeUpdate={(e) => trackExport(e.currentTarget)}
+                    onSeeked={(e) => trackExport(e.currentTarget)}
+                    aria-label="Exported film"
+                  />
+                </Graded>
+              ) : (
+                layers.map((c, i) => {
+                  const k = slot(c);
+                  const shown = i === 0;
+                  return (
+                    <Graded key={k} colour={c.colour} hidden={!shown}>
+                      <video
+                        ref={(el) => {
+                          if (el) videos.current.set(k, el);
+                          else videos.current.delete(k);
+                        }}
+                        aria-hidden={shown ? undefined : true}
+                        src={mediaOf(c)}
+                        poster={posterOf(c.clipId)}
+                        controls={shown && mode === 'cut'}
+                        playsInline
+                        muted
+                        // Only the hidden next cut of a playing timeline loads ahead.
+                        preload={shown ? 'metadata' : 'auto'}
+                        onLoadedMetadata={(e) => {
+                          e.currentTarget.currentTime = c.sourceStart;
+                          if (shown && mode === 'timeline') void e.currentTarget.play().catch(() => undefined);
+                        }}
+                        onTimeUpdate={(e) => {
+                          const v = e.currentTarget;
+                          if (shown && mode === 'cut' && v.currentTime >= c.sourceStart + c.duration) v.pause();
+                        }}
+                        aria-label={shown ? 'Cut preview' : undefined}
+                      />
+                    </Graded>
+                  );
+                })
+              )}
+            </div>
+          </StageFrame>
         )}
       </div>
-      <div className={studio.resultActions}>
+
+      <div className={styles.transport}>
         {mode === 'timeline' ? (
-          <Button icon={<Square size={16} />} onPress={() => setMode('cut')}>
-            Stop
-          </Button>
+          <Button label="Stop" size="sm" icon={<Square size={14} />} onClick={() => setMode('cut')} />
         ) : (
           <Button
-            icon={<Play size={16} />}
-            disabled={!items.length}
-            onPress={() => {
+            label="Play the timeline"
+            size="sm"
+            icon={<Play size={14} />}
+            isDisabled={!items.length}
+            onClick={() => {
               setAt(0);
               setMode('timeline');
             }}
-          >
-            Play the timeline
-          </Button>
+          />
         )}
         {exportReady && mode !== 'export' && (
-          <Button variant="ghost" icon={<Film size={16} />} onPress={() => setMode('export')}>
-            Watch the export
-          </Button>
+          <Button label="Watch the export" size="sm" variant="ghost" icon={<Film size={14} />} onClick={() => setMode('export')} />
         )}
-        {exportReady && (
-          <Button
-            variant="ghost"
-            icon={<Download size={16} />}
-            loading={saver.pending}
-            onPress={() => saver.start(libraryUrl('edit', latestExport.finalId!), 'render-to-film.mp4')}
-          >
-            {saver.label(exportGraded ? 'Download ungraded' : 'Download film')}
-          </Button>
-        )}
-        {exportReady && exportGraded && (
-          <Button
-            variant="ghost"
-            icon={<Palette size={16} />}
-            loading={graded.pending}
-            onPress={() =>
-              graded.start(
-                libraryUrl('edit', latestExport.finalId!),
-                { grades: exportGrades, transition: latestExport.transition, fadeSeconds: latestExport.fadeSeconds },
-                'render-to-film-graded'
-              )
-            }
-          >
-            {graded.label('Download graded film')}
-          </Button>
-        )}
-        {graded.pending && (
-          <Button variant="ghost" icon={<X size={16} />} onPress={graded.cancel}>
-            Cancel
-          </Button>
-        )}
-        <Text tone="muted" size="sm" className={studio.resultNote}>
-          {mode === 'export'
-            ? `The exported film, ${latestExport?.seconds}s, ${latestExport?.cuts} cuts.`
-            : mode === 'timeline'
-              ? `Playing cut ${at + 1} of ${items.length}, with its look. The preview plays hard cuts; fades appear in the export.`
-              : cut
-                ? `Cut ${items.indexOf(cut) + 1}, ${cut.sourceStart}s to ${round(cut.sourceStart + cut.duration)}s.`
-                : ''}
+        <Text type="supporting" maxLines={1}>
+          {note}
         </Text>
-      </div>
-      {graded.pending && (
-        <Text tone="muted" size="sm" as="p" className={styles.exportStatus}>
-          Grading plays the film through once in this tab, so it takes about as long as the film. Keep the tab open.
-        </Text>
-      )}
-      {saver.error && (
-        <Alert tone="error" title="Download failed" className={styles.exportStatus}>
-          {saver.error}
-        </Alert>
-      )}
-      {graded.error && (
-        <Alert tone="error" title="The graded film was not made" className={styles.exportStatus}>
-          {graded.error}
-          <div className={styles.alertActions}>
-            <Button size="sm" variant="ghost" onPress={graded.clearError}>
-              Dismiss
-            </Button>
-          </div>
-        </Alert>
-      )}
-      {latestExport?.status === 'pending' && (
-        <div className={styles.exportStatus}>
-          <div className={studio.resultFrame} style={{ aspectRatio: '21 / 6', ['--ar' as string]: '21 / 6' }}>
-            <RenderingStatus label="Exporting the film…" runKey={latestExport.id} />
-          </div>
+        <div className={styles.transportEnd}>
+          {exportReady && (
+            <Button
+              label={saver.label(exportGraded ? 'Download ungraded' : 'Download film')}
+              size="sm"
+              variant="ghost"
+              icon={<Download size={14} />}
+              isLoading={saver.pending}
+              onClick={() => saver.start(libraryUrl('edit', latestExport.finalId!), 'render-to-film.mp4')}
+            />
+          )}
+          {exportReady && exportGraded && (
+            <Button
+              label={graded.label('Download graded film')}
+              size="sm"
+              variant="ghost"
+              icon={<Palette size={14} />}
+              isLoading={graded.pending}
+              onClick={() =>
+                graded.start(
+                  libraryUrl('edit', latestExport.finalId!),
+                  { grades: exportGrades, transition: latestExport.transition, fadeSeconds: latestExport.fadeSeconds },
+                  'render-to-film-graded'
+                )
+              }
+            />
+          )}
+          {graded.pending && <Button label="Cancel" size="sm" variant="ghost" icon={<X size={14} />} onClick={graded.cancel} />}
         </div>
-      )}
-      {latestExport?.status === 'failed' && (
-        <Alert tone="error" title="The export stopped" className={styles.exportStatus}>
-          {latestExport.error ?? 'The film could not be put together.'}{' '}
-          {latestExport.finalId || latestExport.parts
-            ? 'Check again to pick it up where it left off, or press Export film to start over.'
-            : 'Press Export film to start over.'}
-          {(latestExport.finalId || latestExport.parts) && (
-            <div className={styles.alertActions}>
-              <Button
-                size="sm"
-                icon={<RotateCw size={14} />}
-                loading={resume.isPending}
-                onPress={() => resume.mutate({ id: latestExport.id })}
-              >
-                Check again
-              </Button>
+      </div>
+
+      {(graded.pending || saver.error || graded.error || latestExport?.status === 'pending' || latestExport?.status === 'failed') && (
+        <div className={styles.viewerNotes}>
+          {latestExport?.status === 'pending' && (
+            <div className={styles.exporting} role="status">
+              <span className={styles.exportingText}>
+                <Text type="label">Exporting the film</Text>
+                <Text type="supporting" hasTabularNumbers>
+                  <Elapsed runKey={latestExport.id} since={Date.parse(latestExport.createdAt) || undefined} />
+                </Text>
+              </span>
+              <ProgressBar label="Exporting the film" isLabelHidden value={0} isIndeterminate />
             </div>
           )}
-          {resume.error && <Text tone="muted" size="sm">{resume.error.message}</Text>}
-        </Alert>
+          {graded.pending && (
+            <Text type="supporting" as="p">
+              Grading plays the film through once in this tab, so it takes about as long as the film. Keep the tab open.
+            </Text>
+          )}
+          {saver.error && <Banner status="error" title="The download did not finish" description={saver.error} />}
+          {graded.error && (
+            <Banner
+              status="error"
+              title="The graded film was not made"
+              description={graded.error}
+              endContent={<Button label="Dismiss" size="sm" variant="ghost" onClick={graded.clearError} />}
+            />
+          )}
+          {latestExport?.status === 'failed' && (
+            <Banner
+              status="error"
+              title="The export stopped"
+              description={`${latestExport.error ?? 'The film could not be put together.'} ${
+                latestExport.finalId || latestExport.parts
+                  ? 'Check again to pick it up where it left off, or press Export film to start over.'
+                  : 'Press Export film to start over.'
+              }${resume.error ? ` ${resume.error.message}` : ''}`}
+              endContent={
+                latestExport.finalId || latestExport.parts ? (
+                  <Button
+                    label="Check again"
+                    size="sm"
+                    icon={<RotateCw size={14} />}
+                    isLoading={resume.isPending}
+                    onClick={() => resume.mutate({ id: latestExport.id })}
+                  />
+                ) : undefined
+              }
+            />
+          )}
+        </div>
       )}
-    </>
+    </section>
   );
 }
 
@@ -1242,14 +1526,21 @@ function EditorChat({ data, flush, loading }: { data: Project | undefined; flush
     send.mutate({ text: message.trim() });
   };
 
-  if (loading) return <SkeletonText rows={3} />;
+  if (loading)
+    return (
+      <div className={styles.chat}>
+        <Skeleton height={14} width="70%" />
+        <Skeleton height={14} width="90%" index={1} />
+        <Skeleton height={14} width="50%" index={2} />
+      </div>
+    );
   return (
-    <div className={styles.chat}>
+    <section className={styles.chat} aria-label="AI editor">
+      <Text type="supporting" as="p">
+        Tell it what you want, the way you would brief an editor. It changes the timeline for you.
+      </Text>
       {messages.length === 0 && !working ? (
         <div className={styles.suggestions}>
-          <Text size="sm" tone="secondary" as="p">
-            Try one of these, or write your own:
-          </Text>
           {SUGGESTIONS.map((s) => (
             <button key={s} type="button" className={styles.suggestion} onClick={() => setText(s)}>
               {s}
@@ -1260,7 +1551,7 @@ function EditorChat({ data, flush, loading }: { data: Project | undefined; flush
         <ol className={styles.messages} ref={listRef} aria-live="polite">
           {messages.map((m, i) => (
             <li key={`${m.at}-${i}`} className={styles.message} data-role={m.role} data-error={m.error || undefined}>
-              <span className={styles.who}>{m.role === 'user' ? 'You' : 'Editor'}</span>
+              <Text type="supporting">{m.role === 'user' ? 'You' : 'Editor'}</Text>
               <p className={styles.messageText}>{m.text}</p>
               {m.actions?.length ? (
                 <ul className={styles.actions}>
@@ -1273,61 +1564,65 @@ function EditorChat({ data, flush, loading }: { data: Project | undefined; flush
           ))}
           {working && (
             <li className={styles.message} data-role="agent">
-              <span className={styles.who}>Editor</span>
+              <Text type="supporting">Editor</Text>
               <p className={styles.messageText}>
-                <span className={styles.pulse} aria-hidden />
+                <StatusDot variant="accent" label="Working" isPulsing />{' '}
                 {data?.agent?.status === 'applying' ? 'Applying the changes…' : 'Thinking about the cut…'}
               </p>
             </li>
           )}
         </ol>
       )}
-      <div className={styles.composer}>
+      <div
+        className={styles.composer}
+        onKeyDown={(e) => {
+          // Enter sends, Shift+Enter adds a line.
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && (e.target as HTMLElement).tagName === 'TEXTAREA') {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+      >
         <TextArea
-          aria-label="Message to the AI editor"
-          placeholder="Make it 30 seconds, open on the aerial, grade it blue hour luxe"
+          label="Message to the AI editor"
+          isLabelHidden
+          placeholder="For example: make it 30 seconds, open on the aerial, grade it blue hour luxe"
           value={text}
           onChange={setText}
-          rows={2}
-          disabled={working}
-          onSubmit={() => void submit()}
+          rows={3}
+          isDisabled={working}
+          width="100%"
         />
         <div className={styles.composerBar}>
-          <Text size="sm" tone="muted">
-            Enter sends, Shift+Enter adds a line.
-          </Text>
-          <div className={styles.composerButtons}>
+          <Text type="supporting">Enter sends, Shift+Enter adds a line.</Text>
+          <div className={styles.row}>
             {messages.length > 0 && (
-              <Button size="sm" variant="ghost" disabled={working} onPress={() => setConfirmClear(true)}>
-                Clear chat
-              </Button>
+              <Button label="Clear chat" size="sm" variant="ghost" isDisabled={working} onClick={() => setConfirmClear(true)} />
             )}
             <Button
+              label="Send"
               variant="primary"
               size="sm"
               icon={<Send size={14} />}
-              loading={working}
-              disabled={!text.trim()}
-              onPress={() => void submit()}
-            >
-              Send
-            </Button>
+              isLoading={working}
+              isDisabled={!text.trim()}
+              onClick={() => void submit()}
+            />
           </div>
         </div>
       </div>
-      <RunwayErrorNotice error={send.error} modelName="Claude" onRetry={() => void submit()} />
-      <ConfirmDialog
+      <ErrorNote error={send.error} />
+      {clear.error && <Banner status="error" title="The conversation was not cleared" description={clear.error.message} />}
+      <AlertDialog
         isOpen={confirmClear}
+        onOpenChange={setConfirmClear}
         title="Clear the conversation?"
-        confirmLabel="Clear"
-        loading={clear.isPending}
-        error={clear.error?.message}
-        onConfirm={() => clear.mutate()}
-        onCancel={() => setConfirmClear(false)}
-      >
-        The messages go; the timeline and the editor's memory stay.
-      </ConfirmDialog>
-    </div>
+        description="The messages go; the timeline and the editor's memory stay."
+        actionLabel="Clear"
+        isActionLoading={clear.isPending}
+        onAction={() => clear.mutate()}
+      />
+    </section>
   );
 }
 
@@ -1353,48 +1648,57 @@ function Memory({ memory, loading }: { memory: string[] | undefined; loading: bo
     if (text.trim().length >= 2) add.mutate({ text: text.trim() });
   };
 
-  if (loading) return <SkeletonText rows={2} />;
+  if (loading) return null;
   return (
-    <div className={studio.stack}>
+    <section className={styles.memory} aria-label="Memory">
+      <Heading level={4}>Memory</Heading>
+      <Text type="supporting" as="p">
+        Standing preferences the editor follows in every session.
+      </Text>
       {list.length === 0 ? (
-        <Text size="sm" tone="muted" as="p">
-          Nothing yet. Add a preference below, or tell the editor "remember that I like long, slow cuts".
+        <Text type="supporting" as="p">
+          Nothing yet. Add a preference below, or tell the editor &ldquo;remember that I like long, slow cuts&rdquo;.
         </Text>
       ) : (
-        <ul className={styles.memory}>
+        <ul className={styles.memoryList}>
           {list.map((m) => (
             <li key={m} className={styles.memoryItem}>
-              <span>{m}</span>
-              <Button size="sm" variant="ghost" icon={<X size={14} />} aria-label={`Forget: ${m}`} onPress={() => setForgetting(m)} />
+              <Text>{m}</Text>
+              <IconButton label={`Forget: ${m}`} tooltip="Forget" size="sm" variant="ghost" icon={<X size={14} />} onClick={() => setForgetting(m)} />
             </li>
           ))}
         </ul>
       )}
-      <div className={styles.editRow}>
+      <div className={styles.remember}>
         <TextInput
-          aria-label="New preference"
-          placeholder="Always end on the widest shot"
+          label="New preference"
+          isLabelHidden
+          placeholder="For example: always end on the widest shot"
           value={text}
-          onChange={setText}
-          maxLength={240}
-          onPressEnter={submit}
+          onChange={(v: string) => setText(v.slice(0, 240))}
+          onEnter={submit}
+          width="100%"
         />
-        <Button icon={<BookmarkPlus size={16} />} loading={add.isPending} disabled={text.trim().length < 2} onPress={submit}>
-          Remember
-        </Button>
+        <Button
+          label="Remember"
+          size="md"
+          icon={<BookmarkPlus size={16} />}
+          isLoading={add.isPending}
+          isDisabled={text.trim().length < 2}
+          onClick={submit}
+        />
       </div>
-      {add.error && <Alert tone="error" title="That preference was not saved">{add.error.message}</Alert>}
-      <ConfirmDialog
+      {add.error && <Banner status="error" title="That preference was not saved" description={add.error.message} />}
+      {forget.error && <Banner status="error" title="That preference was not forgotten" description={forget.error.message} />}
+      <AlertDialog
         isOpen={forgetting !== null}
+        onOpenChange={(open: boolean) => !open && setForgetting(null)}
         title="Forget this preference?"
-        confirmLabel="Forget"
-        loading={forget.isPending}
-        error={forget.error?.message}
-        onConfirm={() => forgetting && forget.mutate({ text: forgetting })}
-        onCancel={() => setForgetting(null)}
-      >
-        {forgetting}
-      </ConfirmDialog>
-    </div>
+        description={forgetting ?? ''}
+        actionLabel="Forget"
+        isActionLoading={forget.isPending}
+        onAction={() => forgetting && forget.mutate({ text: forgetting })}
+      />
+    </section>
   );
 }

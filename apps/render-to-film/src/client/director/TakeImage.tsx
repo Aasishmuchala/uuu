@@ -2,7 +2,7 @@ import { ImageOff, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
 import { libraryUrl, stillThumbUrl, stillViewUrl } from '../lib/download.ts';
-import { Button } from '../ui/Button.tsx';
+import { Button, Text } from '../kit.ts';
 import styles from './TakeImage.module.css';
 
 export type TakeImageProps = {
@@ -32,17 +32,16 @@ export function TakeImage({ stillId, alt, className, full = false, onOpen, openL
     return (
       <div className={styles.broken} role="status">
         <ImageOff size={16} aria-hidden />
-        <span>This take didn't load.</span>
+        <Text type="supporting">This take didn't load.</Text>
         <Button
+          label="Try again"
           size="sm"
           icon={<RotateCcw size={14} />}
-          onPress={() => {
+          onClick={() => {
             setRound((r) => r + 1);
             setAttempt(1);
           }}
-        >
-          Try again
-        </Button>
+        />
       </div>
     );
   }

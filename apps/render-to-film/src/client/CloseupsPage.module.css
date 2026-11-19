@@ -1,89 +1,112 @@
-/* The Close-ups tab's own pieces; the layout and stage come from Studio.module.css. */
+/* Close-ups: the found details as cards above the controls, the source picker, the stage. */
 
-.dropEmpty {
+.pair {
   display: grid;
-  place-items: center;
-  gap: 8px;
-  min-height: 180px;
-  padding: 24px 20px 56px;
-  border: 1px dashed var(--bay-border-strong);
-  border-radius: var(--bay-r-md);
-  background: var(--bay-bg-subtle);
-  color: var(--bay-text-3);
-  text-align: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-3);
 }
 
-/* A contact sheet of close-ups: as many columns as fit, each at least 280px. */
-.shots {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
-  gap: 28px 24px;
+.gap {
+  width: var(--spacing-2);
 }
 
-.shot {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.shotFrame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  border-radius: var(--bay-r-md);
-  background: var(--bay-stage-frame);
-  box-shadow: 0 0 0 1px rgba(246, 241, 233, 0.06);
-  overflow: hidden;
-}
-
-.shotFrame > * {
-  grid-area: 1 / 1;
-}
-
-.shotButton {
-  display: block;
-  width: 100%;
-  height: 100%;
+.subjects {
+  list-style: none;
+  margin: 0;
   padding: 0;
-  border: 0;
-  background: none;
-  cursor: zoom-in;
-}
-
-.shotButton:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: -2px;
-}
-
-.shotText {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-1-5);
 }
 
 .subject {
-  font-weight: 500;
-  color: var(--bay-text);
-}
-
-.shotActions {
+  width: 100%;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
 
-.saved {
-  margin-top: 24px;
-  text-align: center;
+.subject:hover {
+  border-color: var(--color-border-emphasized);
 }
 
-.retry {
+.subject[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.subject:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.subjectHead {
   display: flex;
-  justify-content: center;
-  margin-top: 12px;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.source {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-inner);
+  background: var(--studio-scrim);
+}
+
+.source > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.source > img[data-dim] {
+  opacity: 0.5;
+}
+
+.drop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  min-height: 88px;
+  padding: var(--spacing-4) var(--spacing-4) 52px;
+  border: 1px dashed var(--color-border-emphasized);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+}
+
+.picker[data-disabled] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.stageCol {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .pollError {
-  margin-top: 16px;
+  padding: 0 var(--spacing-6) var(--spacing-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject {
+    transition: none;
+  }
 }

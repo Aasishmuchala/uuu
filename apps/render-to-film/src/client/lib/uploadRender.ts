@@ -1,4 +1,4 @@
-/** Longest edge sent to the model — plenty for a 2K result, and small to upload. */
+/** Longest edge sent to the model: plenty for a 2K result, and small to upload. */
 const MAX_EDGE = 2560;
 
 export type UploadFailure = { status: number; body: unknown; message: string };

@@ -9,8 +9,34 @@ It came from a hosted app and is now part of this repo. It runs only through
 `node .build/index.mjs` outside the fence are not supported). Its manifest is `app.json`; its
 dependencies are installed once into the state folder and linked in as `node_modules`.
 
-`design.md` describes the screens. `src/local/` holds the local layer that replaces the
-hosted platform.
+`design.md` describes the look and the parts. `src/local/` holds the local layer that replaces
+the hosted platform.
+
+## Screens
+
+- **Make**
+  - **Director**: add a project's images and a story; the app plans a storyboard. The board
+    shows every frame in story order, ending in the film. Open a frame to set its light, camera
+    and people, shoot it, compare it with your image and pick among its takes; open the film to
+    turn the chosen frames into clips.
+  - **Stills**: one render into a film still, with a look, a camera move, people, a marked area
+    to change, a people check and upscaling.
+  - **Video**: a still into a clip, with camera moves and extra frames.
+  - **Close-ups**: the app finds the most cinematic details in a video, a still or an image
+    and shoots each one as a close-up.
+  - **Location**: a Google Earth screenshot into a photograph of the same place, with an
+    optional upscale.
+- **Finish**
+  - **Edit**: the viewer over a timeline where width is time; trim, give each cut a look,
+    talk to the AI editor, and export the film on this Mac.
+- **Collect**
+  - **Library**: everything made, with filters, tags, compare and delete.
+  - **Favourites**: the starred stills and clips, by the render they came from.
+  - **History**: every direction written, with "Use again".
+
+Every Make screen shows takes along the bottom: tick two to four to compare them side by side,
+star the ones to keep. Every button that spends shows its price first. `?` lists the keys;
+`Cmd+K` jumps to any screen or picture.
 
 ## What the fence does not cover
 

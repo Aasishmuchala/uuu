@@ -1,5 +1,16 @@
-import { Clapperboard, Download, Pencil, Sparkles, SquareDashedMousePointer, SunMedium, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  Clapperboard,
+  Columns2,
+  Download,
+  ImageUpscale,
+  Pencil,
+  ScanEye,
+  Sparkles,
+  SquareDashedMousePointer,
+  SunMedium,
+  X,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 
 import {
   ACTIVITIES,
@@ -37,40 +48,38 @@ import {
 } from '../models.ts';
 import type { Still } from '../api.ts';
 import { CastSheetField, type CastSheet } from './CastSheetField.tsx';
-import { Section } from './layouts/Section.tsx';
+import { Banner, Button, IconButton, Switch, Text, TextArea, TextInput, ToggleButton } from './kit.ts';
 import { LightReferenceField } from './LightReferenceField.tsx';
-import { libraryUrl, stillThumbUrl, useDownload } from './lib/download.ts';
+import { canCompare } from './lib/compare.ts';
+import { libraryUrl, stillThumbUrl, stillViewUrl, useDownload } from './lib/download.ts';
 import { classifyRunwayError } from './lib/runwayErrors.ts';
 import { exportMaskPng, maskCoverage, type MaskStroke } from './lib/mask.ts';
+import { takePreset } from './lib/reuse.ts';
 import { isUploadFailure, uploadMask, uploadRender } from './lib/uploadRender.ts';
+import { CompareBoard } from './parts/CompareBoard.tsx';
+import { CompareSlider } from './parts/CompareSlider.tsx';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { OptionSelect } from './parts/OptionSelect.tsx';
+import { Stage, StageEmpty, StageFrame, StageWorking } from './parts/Stage.tsx';
+import { StarButton, useStar } from './parts/StarButton.tsx';
+import { TakeStrip, type TakeStripItem } from './parts/TakeStrip.tsx';
+import { useKeys } from './parts/useKeys.ts';
+import { BenchGroup, Note, Workbench } from './parts/Workbench.tsx';
 import { PeopleCheck } from './PeopleCheck.tsx';
 import { trpc } from './trpc.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
 import { FullSize } from './ui/FullSize.tsx';
-import { ChoiceGroup } from './ui/ChoiceGroup.tsx';
-import { CompareSlider } from './ui/CompareSlider.tsx';
-import { EmptyState } from './ui/EmptyState.tsx';
 import { ImageDropZone } from './ui/ImageDropZone.tsx';
 import { MaskOverlay, MaskPainter } from './ui/MaskPainter.tsx';
-import { PageHeader } from './ui/PageHeader.tsx';
-import { RenderingStatus } from './ui/RenderingStatus.tsx';
 import { Buy, useSpend } from './ui/Price.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { Switch } from './ui/Switch.tsx';
-import { Text } from './ui/Text.tsx';
-import { TextArea } from './ui/TextArea.tsx';
-import { TextInput } from './ui/TextInput.tsx';
-import { Select } from './ui/Select.tsx';
 import { UpscaleStill, type UpscaleJob } from './UpscaleStill.tsx';
-import styles from './Studio.module.css';
+import mk from './screens/Make.module.css';
 
 type Source = {
   src: string;
   name: string;
   width: number;
   height: number;
-  /** Hosted URL from `/api/upload`, once uploaded — reused across takes. */
+  /** Hosted URL from `/api/upload`, once uploaded; reused across takes. */
   hostedUrl?: string | undefined;
   /** The chosen file itself: the page may not fetch its own blob: address (connect-src 'self'). */
   file?: Blob | undefined;
@@ -109,6 +118,9 @@ type ShotSettings = {
 
 type Shot = ShotSettings & { id: string; source: Source; fixed: boolean };
 
+/** A take of this visit and what it came back as. */
+type Take = { shot: Shot; since: number; url?: string | undefined; error?: string | undefined };
+
 const SAMPLE: Source = {
   src: '/sample-render.jpg',
   name: 'sample-render.jpg',
@@ -123,11 +135,13 @@ const DIRECTION_MAX = 600;
 const COMPOSITE_RETRY_MS = 60_000;
 
 export type StillsPageProps = {
-  /** Open the Video tab with this still picked. */
+  /** True while Stills is on screen: its keys work and a preset from History is read. */
+  active: boolean;
+  /** Open the Video screen with this still picked. */
   onAnimate: (stillId: string) => void;
 };
 
-export function StillsPage({ onAnimate }: StillsPageProps) {
+export function StillsPage({ active, onAnimate }: StillsPageProps) {
   const saver = useDownload();
   const utils = trpc.useUtils();
   const [source, setSource] = useState<Source>(SAMPLE);
@@ -166,6 +180,16 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
   const [fixing, setFixing] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [shot, setShot] = useState<Shot | null>(null);
+  /** Every take of this visit, newest first, with what it came back as. */
+  const [takes, setTakes] = useState<Take[]>([]);
+  /** The take on the stage: null follows the newest; 'source' shows the render being set up. */
+  const [focus, setFocus] = useState<string | null>(null);
+  /** The panel beside the stage. */
+  const [side, setSide] = useState<'people' | 'upscale' | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
+  const [board, setBoard] = useState(false);
+  const [full, setFull] = useState(false);
   const shotRef = useRef(shot);
   shotRef.current = shot;
   const sourceRef = useRef(source);
@@ -234,8 +258,6 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
     ? status.data?.error ?? 'The generation did not return an image. Try again.'
     : undefined;
   const shownError = error ?? status.error;
-  /** Upscales of takes that a newer take has since replaced. */
-  const earlierUpscales = Object.entries(upscales).filter(([stillId]) => stillId !== shot?.id);
   const directionTooLong = direction.length > DIRECTION_MAX;
 
   async function onFile(file: File) {
@@ -366,14 +388,18 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
         maskKey,
         ...(maskKey ? { aspectRatio: MATCH_RENDER, angle: 'as-rendered' as const } : {}),
       });
-      setShot({
+      const made: Shot = {
         ...settings,
         ...(maskKey ? { aspectRatio: MATCH_RENDER, angle: 'as-rendered' as const } : {}),
         maskKey,
         id,
         source: { ...from, hostedUrl },
         fixed: fixes !== '',
-      });
+      };
+      setShot(made);
+      // The session's takes, newest first; the stage follows the newest.
+      setTakes((prev) => [{ shot: made, since: Date.now() }, ...prev.filter((t) => t.shot.id !== id)]);
+      setFocus(null);
     } catch (e) {
       setError(isUploadFailure(e) ? e.body ?? e : e);
     } finally {
@@ -413,11 +439,12 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
       source
     );
 
-  async function fix(fixes: string) {
-    if (!shot || busy) return;
+  /** Re-take a finished take (the one on the stage) with the people check's corrections. */
+  async function fix(fixes: string, target: Shot | null = shot) {
+    if (!target || busy) return;
     setFixing(true);
     try {
-      await submit(shot, shot.source, fixes.slice(0, 2000));
+      await submit(target, target.source, fixes.slice(0, 2000));
     } finally {
       setFixing(false);
     }
@@ -427,7 +454,6 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
   // One take of the chosen model (the people check is the app's thinking, not a picture).
   const priceItems = [{ preset: imageModel, resolution }];
   const spend = useSpend(priceItems);
-  const modelName = imageModelName(shot && shownError === status.error ? shot.imageModel : imageModel);
 
   const lookName = shot ? lookLabel(shot.look, litFromReference(shot)) : lookLabel(look);
   const finishedStills = (library.data?.stills ?? []).filter((s) => s.status === 'succeeded');
@@ -441,439 +467,301 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
   /** A lighting reference is in and will be sent: the presets step aside. */
   const usingLightRef = (lightRef !== null || matchedStill !== undefined) && !hasMark;
 
-  return (
-    <>
-      <div className={styles.layout}>
-        <div className={styles.controls}>
-          <PageHeader
-            title="Turn a render into a film still"
-            description="Keeps your composition and design, replaces the CG look with photoreal materials, light and lens."
-          />
-          <div className={styles.strictSwitch}>
-            <Switch
-              label="Only what's in the image"
-              hint={
-                onlyInImage
-                  ? 'Nothing new appears: no added objects, buildings or places beyond the frame. People you ask for are the only addition.'
-                  : 'Off: the model may add or reveal things the render doesn\'t show.'
-              }
-              checked={onlyInImage}
-              onChange={setOnlyInImage}
-              disabled={busy}
-            />
-          </div>
-          <Section
-            step={1}
-            title="Source render"
-            description={
-              marking
-                ? 'Paint the area that may change. Everything outside it stays exactly as rendered.'
-                : 'Drop an image here or replace it.'
-            }
-          >
-            {marking ? (
-              <MaskPainter
-                src={source.src}
-                alt={`Source render: ${source.name}. Paint to mark the area to edit.`}
-                width={source.width}
-                height={source.height}
-                strokes={strokes}
-                onChange={setStrokes}
-                onDone={() => setMarking(false)}
-                disabled={busy}
-              />
-            ) : (
-              <ImageDropZone onFile={onFile} disabled={busy}>
-                <figure className={styles.frame} style={{ aspectRatio: `${source.width} / ${source.height}` }}>
-                  <img className={styles.image} src={source.src} alt={`Source render: ${source.name}`} />
-                  {hasMark && <MaskOverlay strokes={strokes} />}
-                </figure>
-              </ImageDropZone>
-            )}
-            {!marking && (
-              <div className={styles.markRow}>
-                <Button
-                  size="sm"
-                  variant={hasMark ? 'default' : 'ghost'}
-                  icon={hasMark ? <Pencil size={14} /> : <SquareDashedMousePointer size={14} />}
-                  disabled={busy}
-                  onPress={() => setMarking(true)}
-                >
-                  {hasMark ? 'Edit marked area' : 'Mark an area to edit'}
-                </Button>
-                {hasMark && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={<X size={14} />}
-                    disabled={busy}
-                    onPress={() => setStrokes([])}
-                  >
-                    Remove mark
-                  </Button>
-                )}
-              </div>
-            )}
-            <Text tone="muted" size="sm" as="p" className={styles.meta}>
-              {source.name}, {source.width} × {source.height}
-              {hasMark &&
-                `. About ${Math.max(1, Math.round(markedShare * 100))}% marked: only that area will change, the rest is kept pixel for pixel.`}
-            </Text>
-          </Section>
+  // A take that finished keeps what it came back as, so the strip and the stage can show it later.
+  const finishedId = finished ? shot?.id : undefined;
+  useEffect(() => {
+    if (!finishedId) return;
+    const url = status.data?.url ?? undefined;
+    const failed = url ? undefined : (status.data?.error ?? 'The generation did not return an image. Try again.');
+    setTakes((prev) => prev.map((t) => (t.shot.id === finishedId ? { ...t, url, error: failed } : t)));
+    // A take with people gets its people check beside it at once, as it always has.
+    if (url && shotRef.current?.crowd !== 'none') setSide('people');
+  }, [finishedId]);
 
-          <Section step={2} title="Model" description="Which model develops the still, and how large.">
-            <div className={styles.selectRow}>
-              <Select
-                label="Image model"
-                options={IMAGE_MODELS}
-                value={imageModel}
-                onChange={(id) => {
-                  const next = id as ImageModelId;
-                  setImageModel(next);
-                  setResolution(defaultImageResolution(next));
-                  // Keep the frame shape when the new model offers it.
-                  if (!imageModelHasAspect(next, aspectRatio)) setAspectRatio(MATCH_RENDER);
-                  setError(null);
+  // "Use again" and "Reuse settings" fill the form; nothing is sent until the priced button.
+  useEffect(() => {
+    if (!active) return;
+    const p = takePreset('still');
+    if (!p) return;
+    if (p.imageModel) {
+      const m = p.imageModel as ImageModelId;
+      setImageModel(m);
+      setResolution(p.resolution ?? defaultImageResolution(m));
+      setAspectRatio(p.aspectRatio ?? MATCH_RENDER);
+    }
+    if (p.look) setLook(p.look as LookId);
+    if (p.angle) setAngle(p.angle as AngleId);
+    if (p.crowd) setCrowd(p.crowd as CrowdId);
+    if (p.people !== undefined) setPeople(p.people);
+    if (p.ethnicity) setEthnicity(p.ethnicity as EthnicityId);
+    if (p.age) setAge(p.age as AgeId);
+    if (p.wardrobe) setWardrobe(p.wardrobe as WardrobeId);
+    if (p.activity) setActivity(p.activity as ActivityId);
+    if (p.direction !== undefined) setDirection(p.direction);
+    const from = p.source;
+    if (from) {
+      setSource((prev) => {
+        if (prev.src.startsWith('blob:') && prev.src !== shotRef.current?.source.src) URL.revokeObjectURL(prev.src);
+        return { src: from.url, name: 'The render of the take you picked', width: from.width, height: from.height, hostedUrl: from.url };
+      });
+      setStrokes([]);
+      setSavedMask(null);
+      setMarking(false);
+    }
+    setError(null);
+    setFocus('source');
+  }, [active]);
+
+  const latest = takes[0] ?? null;
+  const viewed = focus === 'source' ? null : (focus ? takes.find((t) => t.shot.id === focus) : undefined) ?? latest;
+  const viewedShot = viewed?.shot ?? null;
+  const viewingLatest = viewedShot !== null && viewedShot.id === shot?.id;
+  const viewedUrl = viewedShot ? (viewingLatest ? resultUrl : viewed?.url ? stillViewUrl(viewedShot.id) : undefined) : undefined;
+  const viewedError = viewedShot ? (viewingLatest ? taskError : viewed?.error) : undefined;
+  const viewedRendering = viewingLatest && rendering;
+  const viewedLook = viewedShot ? lookLabel(viewedShot.look, litFromReference(viewedShot)) : lookName;
+  /** The render a take was made from: its hosted copy outlives the page's own preview of it. */
+  const renderOf = (s: Shot) => (viewingLatest && s.id === shot?.id ? s.source.src : (s.source.hostedUrl ?? s.source.src));
+  const star = useStar();
+
+  const stripItems: TakeStripItem[] = takes.map((t) => {
+    const isLatest = t.shot.id === shot?.id;
+    const working = isLatest && rendering;
+    return {
+      id: t.shot.id,
+      kind: 'still',
+      thumb: t.url ? stillThumbUrl(t.shot.id) : (t.shot.source.hostedUrl ?? t.shot.source.src),
+      title: lookLabel(t.shot.look, litFromReference(t.shot)),
+      state: working
+        ? 'rendering'
+        : t.error
+          ? 'failed'
+          : t.url
+            ? 'ready'
+            : isLatest && status.error
+              ? 'lost'
+              : 'rendering',
+      ratio: ratioOf(shotFrame(t.shot)),
+      progress: working ? status.data?.progress : undefined,
+      since: t.since,
+    };
+  });
+  const tickedTakes = takes.filter((t) => ticked.has(t.shot.id) && t.url);
+  const compare = canCompare(tickedTakes.map(() => ({ kind: 'still' as const })));
+  const toggleTick = (id: string) =>
+    setTicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 4) next.add(id);
+      return next;
+    });
+  const order = ['source', ...takes.map((t) => t.shot.id)];
+  const at = focus === 'source' ? 0 : viewedShot ? order.indexOf(viewedShot.id) : 0;
+  const step = (by: number) => {
+    const next = order[Math.min(order.length - 1, Math.max(0, at + by))];
+    if (next) setFocus(next);
+  };
+
+  useKeys(
+    [
+      { key: 'ArrowLeft', onKey: () => step(-1) },
+      { key: 'ArrowRight', onKey: () => step(1) },
+      { key: 's', onKey: () => viewedShot && viewedUrl && star.toggle('still', viewedShot.id), disabled: !viewedUrl },
+      {
+        key: 'c',
+        onKey: () => (compare.ok ? setBoard(true) : setComparing((v) => !v)),
+        disabled: !viewedUrl && !compare.ok,
+      },
+      { key: 'f', onKey: () => setFull(true), disabled: !viewedUrl },
+    ],
+    active && !marking
+  );
+
+  const settingsLine = (s: Shot) =>
+    [
+      `${imageModelName(s.imageModel)} at ${imageResolutionName(s.imageModel, s.resolution) ?? 'its own size'}`,
+      s.aspectRatio !== MATCH_RENDER ? s.aspectRatio : '',
+      lookLabel(s.look, litFromReference(s)).toLowerCase(),
+      s.fixed ? 'with fixes' : '',
+      s.maskKey ? 'only the marked area changed' : '',
+      s.angle !== 'as-rendered' ? (ANGLES.find((a) => a.id === s.angle)?.name.toLowerCase() ?? '') : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+  const stageRatio = viewedShot ? ratioOf(shotFrame(viewedShot)) : source.width / source.height;
+  const working = phase !== 'idle' || viewedRendering;
+  const workingLabel =
+    phase === 'uploading'
+      ? 'Uploading your render'
+      : phase === 'submitting'
+        ? fixing
+          ? 'Starting the corrected take'
+          : 'Starting the take'
+        : 'Lighting the scene and developing the frame';
+
+  const stage = marking ? (
+    <Stage title="Mark the area to change" caption="Everything outside it stays exactly as rendered.">
+      <div className={mk.painter} style={{ '--r': source.width / source.height } as CSSProperties}>
+        <MaskPainter
+          src={source.src}
+          alt={`Source render: ${source.name}. Paint to mark the area to edit.`}
+          width={source.width}
+          height={source.height}
+          strokes={strokes}
+          onChange={setStrokes}
+          onDone={() => setMarking(false)}
+          disabled={busy}
+        />
+      </div>
+    </Stage>
+  ) : (
+    <Stage
+      title={viewedShot && !working ? viewedLook : 'Your render'}
+      caption={
+        viewedShot && !working
+          ? settingsLine(viewedShot)
+          : `${source.name}, ${source.width} × ${source.height}`
+      }
+      actions={
+        viewedShot && viewedUrl && !working ? (
+          <>
+            <ToggleButton
+              label="Compare with render"
+              tooltip="Compare with render (C)"
+              size="sm"
+              isIconOnly
+              icon={<Columns2 size={16} />}
+              isPressed={comparing}
+              onPressedChange={(on: boolean) => setComparing(on)}
+            />
+            <FullSize
+              src={libraryUrl('still', viewedShot.id)}
+              kind="still"
+              title={viewedLook}
+              alt={`Photoreal ${viewedLook.toLowerCase()} version of the render`}
+              iconOnly
+              isOpen={full}
+              onOpenChange={setFull}
+            />
+            <StarButton kind="still" id={viewedShot.id} />
+            <IconButton
+              label={saver.pending ? saver.label('Download') : 'Download'}
+              tooltip={saver.pending ? saver.label('Download') : 'Download'}
+              size="sm"
+              variant="ghost"
+              isLoading={saver.pending}
+              icon={<Download size={16} />}
+              onClick={() => saver.start(libraryUrl('still', viewedShot.id), `film-still-${viewedShot.look}.png`)}
+            />
+            {!viewedShot.maskKey && matchStillId !== viewedShot.id && (
+              <IconButton
+                label="Use this light for other views"
+                tooltip="Use this light for other views"
+                size="sm"
+                variant="ghost"
+                icon={<SunMedium size={16} />}
+                onClick={() => {
+                  removeLightRef();
+                  setMatchStillId(viewedShot.id);
                 }}
-                disabled={busy}
               />
-              <Select
-                label="Resolution"
-                options={imageResolutions(imageModel)}
-                value={resolution}
-                onChange={setResolution}
-                disabled={busy || imageResolutions(imageModel).length < 2}
-              />
-            </div>
-            <div className={styles.aspectField}>
-              <Select
-                label="Aspect ratio"
-                options={imageAspectOptions(imageModel)}
-                value={hasMark ? MATCH_RENDER : aspectRatio}
-                onChange={setAspectRatio}
-                disabled={busy || hasMark}
-              />
-              {hasMark ? (
-                <Text tone="muted" size="sm" as="p" className={styles.meta}>
-                  A marked edit keeps the render's own frame.
-                </Text>
-              ) : aspectRatio !== MATCH_RENDER && (
-                <Text tone="muted" size="sm" as="p" className={styles.meta}>
-                  A different shape crops in, or continues only what is already at the render's edges.
-                </Text>
-              )}
-            </div>
-          </Section>
-
-          <Section
-            step={3}
-            title="Look"
-            description={
-              hasMark
-                ? 'With a marked area, the look only shapes what changes inside it; the rest keeps the render’s light.'
-                : usingLightRef
-                  ? 'Lit from your lighting reference. Remove it to pick a preset look.'
-                  : 'The light and grade the scene is shot in, from a preset or your own reference photo.'
-            }
-          >
-            <LightReferenceField
-              image={lightRef}
-              uploading={lightUploading}
-              error={lightError}
-              lockedReason={
-                hasMark
-                  ? 'Not used while an area is marked: the rest of the frame keeps the render’s own light.'
-                  : undefined
-              }
-              modelName={imageModelName(imageModel)}
-              disabled={busy}
-              onFile={(f) => void onLightFile(f)}
-              onRemove={removeLightRef}
-              stills={finishedStills.slice(0, 24).map(stillItem)}
-              stillsLoading={library.isLoading}
-              stillsError={library.error}
-              onRetryStills={() => void library.refetch()}
-              matched={matchedStill ? stillItem(matchedStill) : null}
-              onMatch={(id) => {
-                setMatchStillId(id);
-                if (id) removeLightRef();
-              }}
-            />
-            <ChoiceGroup
-              label="Cinematic look"
-              choices={LOOKS}
-              value={look}
-              onChange={(id) => setLook(id as LookId)}
-              disabled={busy || usingLightRef}
-            />
-          </Section>
-
-          <Section
-            step={4}
-            title="Camera angle"
-            description={
-              hasMark
-                ? 'A marked edit keeps the camera where it is, so the unmarked area can stay untouched.'
-                : "Small moves around your render's own viewpoint, so only what is in the image appears."
-            }
-          >
-            <ChoiceGroup
-              label="Camera angle"
-              choices={ANGLES}
-              value={hasMark ? 'as-rendered' : angle}
-              onChange={(id) => setAngle(id as AngleId)}
-              disabled={busy || hasMark}
-            />
-          </Section>
-
-          <Section step={5} title="People" description="Optional. Adds photoreal people, lit and scaled to match the scene.">
-            <div className={styles.stack}>
-              <ChoiceGroup
-                label="People in the shot"
-                choices={CROWDS}
-                value={crowd}
-                onChange={(id) => setCrowd(id as CrowdId)}
-                disabled={busy}
-              />
-              {crowd !== 'none' && (
-                <>
-                  <div className={styles.peopleGrid}>
-                    <Select
-                      label="Ethnicity"
-                      options={ETHNICITIES}
-                      value={ethnicity}
-                      onChange={(id) => setEthnicity(id as EthnicityId)}
-                      disabled={busy}
-                    />
-                    <Select
-                      label="Age range"
-                      options={AGES}
-                      value={age}
-                      onChange={(id) => setAge(id as AgeId)}
-                      disabled={busy}
-                    />
-                    <Select
-                      label="Wardrobe"
-                      options={WARDROBES}
-                      value={wardrobe}
-                      onChange={(id) => setWardrobe(id as WardrobeId)}
-                      disabled={busy}
-                    />
-                    <Select
-                      label="Activity"
-                      options={ACTIVITIES}
-                      value={activity}
-                      onChange={(id) => setActivity(id as ActivityId)}
-                      disabled={busy}
-                    />
-                  </div>
-                  <TextInput
-                    label="Anything else about them"
-                    value={people}
-                    onChange={setPeople}
-                    maxLength={400}
-                    disabled={busy}
-                    placeholder="Optional, e.g. a woman reading on the pool edge"
-                  />
-                  <CastSheetField
-                    sheet={cast}
-                    uploading={castUploading}
-                    error={castError}
-                    supported={castSupported}
-                    modelName={imageModelName(imageModel)}
-                    alternatives={castSheetModelNames()}
-                    disabled={busy}
-                    onFile={(f) => void onCastFile(f)}
-                    onRemove={removeCast}
-                  />
-                </>
-              )}
-            </div>
-          </Section>
-
-          <Section
-            step={6}
-            title="Extra direction"
-            description={
-              hasMark
-                ? 'What should happen inside the marked area, e.g. replace the paving with wet stone.'
-                : 'Optional. Anything the shot should add or change.'
-            }
-          >
-            <TextArea
-              aria-label="Extra direction"
-              value={direction}
-              onChange={setDirection}
-              rows={3}
-              maxLength={DIRECTION_MAX}
-              disabled={busy}
-              placeholder="e.g. a light breeze moving the leaves, warmer water reflections"
-            />
-            {directionTooLong && (
-              <Alert tone="warning" title="Your extra direction is too long">
-                Your extra direction is over {DIRECTION_MAX} characters. Shorten it and try again.
-              </Alert>
             )}
-          </Section>
-
-          <div className={styles.actionBar}>
-          <Buy items={priceItems}>
-          <Button
-            variant="primary"
-            icon={<Sparkles size={16} />}
-            className={styles.generate}
-            loading={busy}
-            disabled={busy || spend.blocked || castUploading || lightUploading || planBlocked || unavailable || !maskFit.ok || directionTooLong}
-            onPress={() => void run()}
-          >
-            {phase === 'uploading'
-              ? 'Uploading…'
-              : phase === 'submitting'
-                ? 'Starting…'
-                : rendering
-                  ? 'Rendering…'
-                  : hasMark
-                    ? 'Edit the marked area'
-                    : resultUrl
-                      ? 'Make another take'
-                      : 'Make it cinematic'}
-          </Button>
-          </Buy>
-          <Text tone="muted" size="sm" as="p" className={styles.meta}>
-            Uses {imageModelName(imageModel)} at {imageResolutionName(imageModel, resolution)}
-            {aspectRatio !== MATCH_RENDER && !hasMark ? `, ${aspectRatio}` : ''}
-            {hasMark ? ', changing only the marked area' : ''}. Each picture shows its price before you make it.
-            {crowd !== 'none' && cast?.hostedUrl && castSupported && ' The cast sheet is sent as a second reference image.'}
-            {usingLightRef &&
-              (matchedStill
-                ? ' Lit to match your chosen still, for a matching series.'
-                : ' Lit from your lighting reference; only its light is used.')}
-          </Text>
-
-          {!maskFit.ok && (
-            <Alert tone="warning" title="This model can't keep the render's frame">
-              {maskFit.reason}
-            </Alert>
-          )}
-          <RunwayErrorNotice
-            error={shownError}
-            modelName={modelName}
-            onRetry={() => void (shownError === status.error ? status.refetch() : run())}
-          />
-          </div>
+            {viewedShot.crowd !== 'none' && (
+              <ToggleButton
+                label="People check"
+                tooltip="People check"
+                size="sm"
+                isIconOnly
+                icon={<ScanEye size={16} />}
+                isPressed={side === 'people'}
+                onPressedChange={(on: boolean) => setSide(on ? 'people' : null)}
+              />
+            )}
+            <ToggleButton
+              label="Upscale"
+              tooltip="Upscale"
+              size="sm"
+              isIconOnly
+              icon={<ImageUpscale size={16} />}
+              isPressed={side === 'upscale'}
+              onPressedChange={(on: boolean) => setSide(on ? 'upscale' : null)}
+            />
+            <span className={mk.gap} />
+            <Button label="Make a video" size="sm" icon={<Clapperboard size={16} />} onClick={() => onAnimate(viewedShot.id)} />
+          </>
+        ) : undefined
+      }
+      below={
+        <>
+          {saver.error && <Banner status="error" title="The download did not finish" description={saver.error} />}
+          {!working && viewedError && <Banner status="error" title="This take didn't render" description={viewedError} />}
+        </>
+      }
+    >
+      <StageFrame ratio={stageRatio} dim={working}>
+        {working ? (
+          <>
+            <img src={viewedShot && phase === 'idle' ? renderOf(viewedShot) : source.src} alt={`Source render: ${source.name}`} />
+            <StageWorking
+              label={workingLabel}
+              progress={phase === 'idle' ? status.data?.progress : undefined}
+              runKey={phase === 'idle' ? shot?.id : phase}
+            />
+          </>
+        ) : viewedShot && viewedUrl ? (
+          comparing ? (
+            <CompareSlider
+              before={renderOf(viewedShot)}
+              after={viewedUrl}
+              beforeAlt="Original render"
+              afterAlt={`Photoreal ${viewedLook.toLowerCase()} version of the render`}
+              afterFallback={stillViewUrl(viewedShot.id)}
+            />
+          ) : (
+            <img src={viewedUrl} alt={`Photoreal ${viewedLook.toLowerCase()} version of the render`} />
+          )
+        ) : viewedShot ? (
+          <img src={renderOf(viewedShot)} alt="Original render" />
+        ) : (
+          <>
+            <img src={source.src} alt={`Source render: ${source.name}`} />
+            {hasMark && <MaskOverlay strokes={strokes} />}
+          </>
+        )}
+      </StageFrame>
+      {!viewedShot && !working && takes.length === 0 && (
+        <div className={mk.hint}>
+          <Text type="supporting">Pick a look and press {hasMark ? 'Edit the marked area' : 'Make it cinematic'}. A take usually lands in under a minute.</Text>
         </div>
+      )}
+    </Stage>
+  );
 
-        <div className={styles.result} data-stage>
-          <Section title="Film still">
-            {resultUrl && shot ? (
-              <>
-                <CompareSlider
-                  before={shot.source.src}
-                  after={resultUrl}
-                  beforeAlt="Original render"
-                  afterAlt={`Photoreal ${lookName.toLowerCase()} version of the render`}
-                  aspectRatio={shotFrame(shot)}
-                />
-                {saver.error && (
-                  <Alert tone="error" title="Download failed">
-                    {saver.error}
-                  </Alert>
-                )}
-                <div className={styles.resultActions}>
-                  <Button
-                    icon={<Download size={16} />}
-                    loading={saver.pending}
-                    onPress={() => saver.start(libraryUrl('still', shot.id), `film-still-${shot.look}.png`)}
-                  >
-                    {saver.label('Download')}
-                  </Button>
-                  <Button icon={<Clapperboard size={16} />} onPress={() => onAnimate(shot.id)}>
-                    Make a video
-                  </Button>
-                  {!shot.maskKey && matchStillId !== shot.id && (
-                    <Button
-                      icon={<SunMedium size={16} />}
-                      onPress={() => {
-                        removeLightRef();
-                        setMatchStillId(shot.id);
-                      }}
-                    >
-                      Use this light for other views
-                    </Button>
-                  )}
-                  <FullSize
-                    src={libraryUrl('still', shot.id)}
-                    kind="still"
-                    title={lookName}
-                    alt={`Photoreal ${lookName.toLowerCase()} version of the render`}
-                  />
-                  <Text tone="muted" size="sm" className={styles.resultNote}>
-                    {imageModelName(shot.imageModel)} at{' '}
-                    {imageResolutionName(shot.imageModel, shot.resolution)}
-                    {shot.aspectRatio !== MATCH_RENDER && ` ${shot.aspectRatio}`}, {lookName.toLowerCase()}
-                    {shot.fixed && ', with fixes'}
-                    {shot.maskKey && ', only the marked area changed'}
-                    {shot.angle !== 'as-rendered' &&
-                      `, ${ANGLES.find((a) => a.id === shot.angle)?.name.toLowerCase()}`}
-                    . Drag the divider to compare.
-                  </Text>
-                </div>
-                {shot.crowd !== 'none' && (
-                  <PeopleCheck
-                    key={shot.id}
-                    stillId={shot.id}
-                    autoRun
-                    onFix={(f) => void fix(f)}
-                    fixing={fixing || busy}
-                    retake={[{ preset: shot.imageModel, resolution: shot.resolution }]}
-                  />
-                )}
-                <UpscaleStill
-                  key={`up-${shot.id}`}
-                  stillId={shot.id}
-                  aspectRatio={shotFrame(shot)}
-                  name={`film-still-${shot.look}`}
-                  job={upscales[shot.id] ?? null}
-                  onJob={(job) => setUpscaleJob(shot.id, job)}
-                />
-              </>
-            ) : (
-              <div
-                className={styles.resultFrame}
-                style={{
-                  aspectRatio: frameOf(hasMark ? MATCH_RENDER : aspectRatio, source),
-                  ['--ar' as string]: frameOf(hasMark ? MATCH_RENDER : aspectRatio, source),
-                }}
-              >
-                {busy ? (
-                  <RenderingStatus
-                    label={
-                      phase === 'uploading'
-                        ? 'Uploading your render…'
-                        : phase === 'submitting'
-                          ? fixing
-                            ? 'Starting the corrected take…'
-                            : 'Starting the take…'
-                          : 'Lighting the scene and developing the frame…'
-                    }
-                    progress={status.data?.progress}
-                    runKey={shot?.id}
-                  />
-                ) : taskError ? (
-                  <div className={styles.frameAlert}>
-                    <Alert tone="error" title="This take didn't render">
-                      {taskError}
-                    </Alert>
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="Your film still will appear here"
-                    hint="Pick a look and press Make it cinematic. A take usually lands in under a minute."
-                  />
-                )}
-              </div>
-            )}
-            {earlierUpscales.map(([stillId, job]) => (
+  const upscaleOthers = Object.entries(upscales).filter(([stillId]) => stillId !== viewedShot?.id);
+  const sidePanel =
+    side && viewedShot && viewedUrl && !marking ? (
+      <div className={mk.side}>
+        {side === 'people' && viewedShot.crowd !== 'none' ? (
+          <PeopleCheck
+            key={viewedShot.id}
+            stillId={viewedShot.id}
+            autoRun
+            onFix={(f) => void fix(f, viewedShot)}
+            fixing={fixing || busy}
+            retake={[{ preset: viewedShot.imageModel, resolution: viewedShot.resolution }]}
+          />
+        ) : (
+          <>
+            <UpscaleStill
+              key={`up-${viewedShot.id}`}
+              stillId={viewedShot.id}
+              aspectRatio={shotFrame(viewedShot)}
+              name={`film-still-${viewedShot.look}`}
+              job={upscales[viewedShot.id] ?? null}
+              onJob={(job) => setUpscaleJob(viewedShot.id, job)}
+            />
+            {upscaleOthers.map(([stillId, job]) => (
               <UpscaleStill
                 key={`up-${stillId}`}
                 stillId={stillId}
@@ -884,9 +772,322 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
                 earlier
               />
             ))}
-          </Section>
-        </div>
+          </>
+        )}
       </div>
+    ) : undefined;
+
+  const strip =
+    takes.length > 0 ? (
+      <TakeStrip
+        label="Takes"
+        items={stripItems}
+        value={focus === 'source' ? null : (viewedShot?.id ?? null)}
+        onChange={(id) => setFocus(id ?? 'source')}
+        next={{ thumb: source.src, title: source.name, ratio: source.width / source.height }}
+        ticked={ticked}
+        onTick={toggleTick}
+        actions={
+          ticked.size > 0 ? (
+            <>
+              <Button label="Clear ticks" size="sm" variant="ghost" onClick={() => setTicked(new Set())} />
+              <Button
+                label={`Compare ${tickedTakes.length}`}
+                size="sm"
+                isDisabled={!compare.ok}
+                tooltip={compare.ok ? 'Compare side by side (C)' : compare.why}
+                onClick={() => setBoard(true)}
+              />
+            </>
+          ) : undefined
+        }
+      />
+    ) : undefined;
+
+  const controls = (
+    <>
+      <BenchGroup
+        title="Render"
+        description={
+          marking
+            ? 'Paint on the stage the area that may change. Press Done there when it is right.'
+            : 'Drop an image on it, or replace it.'
+        }
+      >
+        {!marking && (
+          <ImageDropZone onFile={onFile} disabled={busy}>
+            <figure className={mk.source} style={{ aspectRatio: `${source.width} / ${source.height}` }}>
+              <img src={source.src} alt={`Source render: ${source.name}`} />
+              {hasMark && <MaskOverlay strokes={strokes} />}
+            </figure>
+          </ImageDropZone>
+        )}
+        {!marking && (
+          <div className={mk.row}>
+            <Button
+              label={hasMark ? 'Edit marked area' : 'Mark an area to edit'}
+              size="sm"
+              variant={hasMark ? 'secondary' : 'ghost'}
+              icon={hasMark ? <Pencil size={14} /> : <SquareDashedMousePointer size={14} />}
+              isDisabled={busy}
+              onClick={() => setMarking(true)}
+            />
+            {hasMark && (
+              <Button label="Remove mark" size="sm" variant="ghost" icon={<X size={14} />} isDisabled={busy} onClick={() => setStrokes([])} />
+            )}
+          </div>
+        )}
+        <Note>
+          {source.name}, {source.width} × {source.height}
+          {hasMark &&
+            `. About ${Math.max(1, Math.round(markedShare * 100))}% marked: only that area will change, the rest is kept pixel for pixel.`}
+        </Note>
+      </BenchGroup>
+
+      <Switch
+        label="Only what's in the image"
+        description={
+          onlyInImage
+            ? 'Nothing new appears: no added objects, buildings or places beyond the frame. People you ask for are the only addition.'
+            : "Off: the model may add or reveal things the render doesn't show."
+        }
+        value={onlyInImage}
+        onChange={setOnlyInImage}
+        isDisabled={busy}
+      />
+
+      <BenchGroup title="Model" description="Which model develops the still, and how large.">
+        <OptionSelect
+          label="Image model"
+          options={IMAGE_MODELS}
+          value={imageModel}
+          onChange={(id) => {
+            const next = id as ImageModelId;
+            setImageModel(next);
+            setResolution(defaultImageResolution(next));
+            // Keep the frame shape when the new model offers it.
+            if (!imageModelHasAspect(next, aspectRatio)) setAspectRatio(MATCH_RENDER);
+            setError(null);
+          }}
+          disabled={busy}
+        />
+        <div className={mk.pair}>
+          <OptionSelect
+            label="Resolution"
+            options={imageResolutions(imageModel)}
+            value={resolution}
+            onChange={setResolution}
+            disabled={busy || imageResolutions(imageModel).length < 2}
+            showHint={false}
+          />
+          <OptionSelect
+            label="Aspect ratio"
+            options={imageAspectOptions(imageModel)}
+            value={hasMark ? MATCH_RENDER : aspectRatio}
+            onChange={setAspectRatio}
+            disabled={busy || hasMark}
+            disabledMessage={hasMark ? "A marked edit keeps the render's own frame." : undefined}
+            showHint={false}
+          />
+        </div>
+        {hasMark ? (
+          <Note>A marked edit keeps the render&rsquo;s own frame.</Note>
+        ) : (
+          aspectRatio !== MATCH_RENDER && (
+            <Note>A different shape crops in, or continues only what is already at the render&rsquo;s edges.</Note>
+          )
+        )}
+      </BenchGroup>
+
+      <BenchGroup
+        title="Look"
+        description={
+          hasMark
+            ? 'With a marked area, the look only shapes what changes inside it; the rest keeps the render’s light.'
+            : usingLightRef
+              ? 'Lit from your lighting reference. Remove it to pick a preset look.'
+              : 'The light and grade the scene is shot in, from a preset or your own reference photo.'
+        }
+      >
+        <OptionSelect
+          label="Cinematic look"
+          options={LOOKS}
+          value={look}
+          onChange={(id) => setLook(id as LookId)}
+          disabled={busy || usingLightRef}
+          disabledMessage={usingLightRef ? 'Lit from your lighting reference.' : undefined}
+        />
+        <LightReferenceField
+          image={lightRef}
+          uploading={lightUploading}
+          error={lightError}
+          lockedReason={
+            hasMark ? 'Not used while an area is marked: the rest of the frame keeps the render’s own light.' : undefined
+          }
+          modelName={imageModelName(imageModel)}
+          disabled={busy}
+          onFile={(f) => void onLightFile(f)}
+          onRemove={removeLightRef}
+          stills={finishedStills.slice(0, 24).map(stillItem)}
+          stillsLoading={library.isLoading}
+          stillsError={library.error}
+          onRetryStills={() => void library.refetch()}
+          matched={matchedStill ? stillItem(matchedStill) : null}
+          onMatch={(id) => {
+            setMatchStillId(id);
+            if (id) removeLightRef();
+          }}
+        />
+      </BenchGroup>
+
+      <BenchGroup
+        title="Camera angle"
+        description={
+          hasMark
+            ? 'A marked edit keeps the camera where it is, so the unmarked area can stay untouched.'
+            : "Small moves around your render's own viewpoint, so only what is in the image appears."
+        }
+      >
+        <OptionSelect
+          label="Camera angle"
+          labelHidden
+          options={ANGLES}
+          value={hasMark ? 'as-rendered' : angle}
+          onChange={(id) => setAngle(id as AngleId)}
+          disabled={busy || hasMark}
+        />
+      </BenchGroup>
+
+      <BenchGroup title="People" description="Optional. Adds photoreal people, lit and scaled to match the scene.">
+        <OptionSelect
+          label="People in the shot"
+          options={CROWDS}
+          value={crowd}
+          onChange={(id) => setCrowd(id as CrowdId)}
+          disabled={busy}
+        />
+        {crowd !== 'none' && (
+          <>
+            <div className={mk.pair}>
+              <OptionSelect label="Ethnicity" options={ETHNICITIES} value={ethnicity} onChange={(id) => setEthnicity(id as EthnicityId)} disabled={busy} showHint={false} />
+              <OptionSelect label="Age range" options={AGES} value={age} onChange={(id) => setAge(id as AgeId)} disabled={busy} showHint={false} />
+              <OptionSelect label="Wardrobe" options={WARDROBES} value={wardrobe} onChange={(id) => setWardrobe(id as WardrobeId)} disabled={busy} showHint={false} />
+              <OptionSelect label="Activity" options={ACTIVITIES} value={activity} onChange={(id) => setActivity(id as ActivityId)} disabled={busy} showHint={false} />
+            </div>
+            <TextInput
+              label="Anything else about them"
+              value={people}
+              onChange={(v: string) => setPeople(v.slice(0, 400))}
+              isDisabled={busy}
+              isOptional
+              placeholder="For example: a woman reading on the pool edge"
+              width="100%"
+            />
+            <CastSheetField
+              sheet={cast}
+              uploading={castUploading}
+              error={castError}
+              supported={castSupported}
+              modelName={imageModelName(imageModel)}
+              alternatives={castSheetModelNames()}
+              disabled={busy}
+              onFile={(f) => void onCastFile(f)}
+              onRemove={removeCast}
+            />
+          </>
+        )}
+      </BenchGroup>
+
+      <BenchGroup
+        title="Extra direction"
+        description={
+          hasMark
+            ? 'What should happen inside the marked area, for example: replace the paving with wet stone.'
+            : 'Optional. Anything the shot should add or change.'
+        }
+      >
+        <TextArea
+          label="Extra direction"
+          isLabelHidden
+          value={direction}
+          onChange={setDirection}
+          rows={3}
+          maxLength={DIRECTION_MAX}
+          isDisabled={busy}
+          placeholder="For example: a light breeze moving the leaves, warmer water reflections"
+          width="100%"
+        />
+        {directionTooLong && (
+          <Banner
+            status="warning"
+            title="Your extra direction is too long"
+            description={`It is over ${DIRECTION_MAX} characters. Shorten it and try again.`}
+          />
+        )}
+      </BenchGroup>
+    </>
+  );
+
+  const foot = (
+    <>
+      <Buy items={priceItems}>
+        <Button
+          label={
+            phase === 'uploading'
+              ? 'Uploading…'
+              : phase === 'submitting'
+                ? 'Starting…'
+                : rendering
+                  ? 'Rendering…'
+                  : hasMark
+                    ? 'Edit the marked area'
+                    : resultUrl
+                      ? 'Make another take'
+                      : 'Make it cinematic'
+          }
+          variant="primary"
+          icon={<Sparkles size={16} />}
+          width="100%"
+          isLoading={busy}
+          isDisabled={busy || spend.blocked || castUploading || lightUploading || planBlocked || unavailable || !maskFit.ok || directionTooLong}
+          onClick={() => void run()}
+        />
+      </Buy>
+      <Note>
+        Uses {imageModelName(imageModel)} at {imageResolutionName(imageModel, resolution)}
+        {aspectRatio !== MATCH_RENDER && !hasMark ? `, ${aspectRatio}` : ''}
+        {hasMark ? ', changing only the marked area' : ''}. Each picture shows its price before you make it.
+        {crowd !== 'none' && cast?.hostedUrl && castSupported && ' The cast sheet is sent as a second reference image.'}
+        {usingLightRef &&
+          (matchedStill
+            ? ' Lit to match your chosen still, for a matching series.'
+            : ' Lit from your lighting reference; only its light is used.')}
+      </Note>
+      {!maskFit.ok && <Banner status="warning" title="This model can't keep the render's frame" description={maskFit.reason} />}
+      <ErrorNote error={shownError} />
+    </>
+  );
+
+  return (
+    <>
+      <Workbench label="Still settings" saveId="stills-controls" controls={controls} foot={foot} stage={stage} strip={strip} side={sidePanel} />
+      <CompareBoard
+        isOpen={board && compare.ok}
+        onClose={() => setBoard(false)}
+        items={tickedTakes.map((t) => ({
+          id: t.shot.id,
+          kind: 'still' as const,
+          src: stillViewUrl(t.shot.id),
+          title: lookLabel(t.shot.look, litFromReference(t.shot)),
+          detail: settingsLine(t.shot),
+          ratio: ratioOf(shotFrame(t.shot)),
+        }))}
+        pickLabel="Put on the stage"
+        onPick={(id) => {
+          setFocus(id);
+          setBoard(false);
+        }}
+      />
     </>
   );
 }
@@ -899,4 +1100,10 @@ function frameOf(ratio: string, source: Source): string {
 
 function shotFrame(shot: Shot): string {
   return frameOf(shot.aspectRatio, shot.source);
+}
+
+/** "2560 / 1440" as a number, width over height. */
+function ratioOf(frame: string): number {
+  const [w, h] = frame.split('/').map((n) => Number(n.trim()));
+  return w && h ? w / h : 16 / 9;
 }

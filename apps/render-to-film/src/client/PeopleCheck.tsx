@@ -2,14 +2,11 @@ import { CircleCheck, RotateCcw, ScanEye, TriangleAlert, WandSparkles } from 'lu
 import { useEffect, useRef } from 'react';
 
 import { PEOPLE_CHECKS } from '../checks.ts';
-import { trpc } from './trpc.ts';
+import { Badge, Banner, Button, Heading, Skeleton, Text } from './kit.ts';
 import { errorMessage } from './lib/runwayErrors.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { trpc } from './trpc.ts';
 import { Buy, type PriceItem, useSpend } from './ui/Price.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { SkeletonText } from './ui/Skeleton.tsx';
-import { Text } from './ui/Text.tsx';
 import styles from './PeopleCheck.module.css';
 
 export type PeopleCheckProps = {
@@ -26,7 +23,7 @@ export type PeopleCheckProps = {
 /**
  * The automatic review of a still with people in it: height against the
  * scene, grounding and physics, light, faces, blend, and that nothing else
- * changed — with a re-take that carries the reviewer's fixes.
+ * changed, with a re-take that carries the reviewer's fixes.
  */
 export function PeopleCheck({ stillId, autoRun, onFix, fixing = false, retake = [] }: PeopleCheckProps) {
   const spend = useSpend(retake);
@@ -61,63 +58,58 @@ export function PeopleCheck({ stillId, autoRun, onFix, fixing = false, retake = 
   return (
     <section className={styles.panel} aria-labelledby={`check-${stillId}`}>
       <div className={styles.head}>
-        <h3 id={`check-${stillId}`} className={styles.title}>
+        <span id={`check-${stillId}`} className={styles.title}>
           <ScanEye size={16} aria-hidden />
-          People check
-        </h3>
+          <Heading level={3}>People check</Heading>
+        </span>
         {check?.status === 'done' && (
-          <span
-            className={check.report.verdict === 'pass' ? styles.pass : styles.issues}
-          >
-            {check.report.verdict === 'pass' ? 'Looks real' : 'Needs fixes'} ·{' '}
-            {check.report.score}/10
-          </span>
+          <Badge
+            variant={check.report.verdict === 'pass' ? 'success' : 'warning'}
+            label={`${check.report.verdict === 'pass' ? 'Looks real' : 'Needs fixes'}, ${check.report.score} of 10`}
+          />
         )}
       </div>
 
       {running ? (
-        <div role="status" aria-live="polite">
-          <Text tone="secondary" size="sm" as="p" className={styles.lead}>
-            Measuring each person against the curbs, lamps and trees, and checking
-            feet, shadows, faces and blend…
+        <div role="status" aria-live="polite" className={styles.stack}>
+          <Text type="supporting" as="p">
+            Measuring each person against the curbs, lamps and trees, and checking feet, shadows, faces and blend.
           </Text>
-          <SkeletonText rows={4} />
+          <Skeleton height={12} width="92%" index={0} />
+          <Skeleton height={12} width="80%" index={1} />
+          <Skeleton height={12} width="86%" index={2} />
+          <Skeleton height={12} width="64%" index={3} />
         </div>
       ) : checkShot.error ? (
         <div className={styles.stack}>
-          <RunwayErrorNotice error={checkShot.error} modelName="Claude Opus 5.5" onRetry={run} />
-          <Button size="sm" icon={<RotateCcw size={14} />} onPress={run}>
-            Try the check again
-          </Button>
+          <ErrorNote error={checkShot.error} />
+          <div>
+            <Button label="Try the check again" size="sm" icon={<RotateCcw size={14} />} onClick={run} />
+          </div>
         </div>
       ) : status.error ? (
         <div className={styles.stack}>
-          <Alert tone="error" title="The people check could not be loaded">
-            {errorMessage(status.error)}
-          </Alert>
-          <Button
-            size="sm"
-            icon={<RotateCcw size={14} />}
-            loading={status.isFetching}
-            onPress={() => void status.refetch()}
-          >
-            Try again
-          </Button>
+          <Banner status="error" title="The people check could not be loaded" description={errorMessage(status.error)} />
+          <div>
+            <Button
+              label="Try again"
+              size="sm"
+              icon={<RotateCcw size={14} />}
+              isLoading={status.isFetching}
+              onClick={() => void status.refetch()}
+            />
+          </div>
         </div>
       ) : check?.status === 'failed' ? (
         <div className={styles.stack}>
-          <Text tone="secondary" size="sm" as="p">
-            {check.error}
-          </Text>
-          <Button size="sm" icon={<RotateCcw size={14} />} onPress={run}>
-            Run the check again
-          </Button>
+          <Text as="p">{check.error}</Text>
+          <div>
+            <Button label="Run the check again" size="sm" icon={<RotateCcw size={14} />} onClick={run} />
+          </div>
         </div>
       ) : check?.status === 'done' ? (
-        <>
-          <Text tone="secondary" size="sm" as="p" className={styles.lead}>
-            {check.report.summary}
-          </Text>
+        <div className={styles.stack}>
+          <Text as="p">{check.report.summary}</Text>
           <ul className={styles.list}>
             {PEOPLE_CHECKS.map((c) => {
               const item = check.report.checks.find((x) => x.id === c.id);
@@ -129,49 +121,54 @@ export function PeopleCheck({ stillId, autoRun, onFix, fixing = false, retake = 
                   ) : (
                     <TriangleAlert size={14} className={styles.badIcon} role="img" aria-label="Issue" />
                   )}
-                  <span>
-                    <span className={styles.itemName}>{c.name}.</span> {item.note}
-                  </span>
+                  <Text>
+                    <Text weight="medium">{c.name}.</Text> {item.note}
+                  </Text>
                 </li>
               );
             })}
           </ul>
+          {check.report.verdict === 'issues' && check.report.fixes.trim() && (
+            <Text type="supporting" as="p">
+              The re-take will ask for: {check.report.fixes}
+            </Text>
+          )}
           <div className={styles.actions}>
             {check.report.verdict === 'issues' && check.report.fixes.trim() && (
               <Buy items={retake}>
                 <Button
+                  label="Fix and re-take"
                   icon={<WandSparkles size={16} />}
-                  loading={fixing}
-                  disabled={fixing || running || spend.blocked}
-                  onPress={() => onFix(check.report.fixes)}
-                >
-                  Fix and re-take
-                </Button>
+                  isLoading={fixing}
+                  isDisabled={fixing || running || spend.blocked}
+                  onClick={() => onFix(check.report.fixes)}
+                />
               </Buy>
             )}
-            <Button variant="ghost" size="sm" icon={<RotateCcw size={14} />} onPress={run} disabled={fixing || running}>
-              Check again
-            </Button>
+            <Button
+              label="Check again"
+              variant="ghost"
+              size="sm"
+              icon={<RotateCcw size={14} />}
+              onClick={run}
+              isDisabled={fixing || running}
+            />
           </div>
-          {check.report.verdict === 'issues' && check.report.fixes.trim() && (
-            <Text tone="muted" size="sm" as="p" className={styles.fixes}>
-              The re-take will ask for: {check.report.fixes}
-            </Text>
-          )}
-        </>
+        </div>
       ) : status.isLoading ? (
-        <SkeletonText rows={2} />
+        <div className={styles.stack}>
+          <Skeleton height={12} width="90%" />
+          <Skeleton height={12} width="70%" index={1} />
+        </div>
       ) : (
         <div className={styles.stack}>
-          <Text tone="secondary" size="sm" as="p">
-            Checks height, footing, shadows, faces and blend for every person in this still.
-          </Text>
-          <Button size="sm" icon={<ScanEye size={14} />} onPress={run}>
-            Check the people
-          </Button>
+          <Text as="p">Checks height, footing, shadows, faces and blend for every person in this still.</Text>
+          <div>
+            <Button label="Check the people" size="sm" icon={<ScanEye size={14} />} onClick={run} />
+          </div>
         </div>
       )}
-      <Text tone="muted" size="sm" as="p" className={styles.note}>
+      <Text type="supporting" as="p">
         Reviewed by Claude Opus 5.5 through the model provider in Settings.
       </Text>
     </section>

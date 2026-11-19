@@ -1,4 +1,4 @@
-import { Clapperboard, Download, MapPinned } from 'lucide-react';
+import { Clapperboard, Columns2, Download, ImageUpscale, MapPinned, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Still } from '../api.ts';
@@ -22,29 +22,27 @@ import {
   type UpscaleFactor,
   upscalerName,
 } from '../models.ts';
-import { Section } from './layouts/Section.tsx';
+import { ratioOf } from './director/shared.ts';
+import { Banner, Button, IconButton, Switch, Text, TextArea, TextInput, ToggleButton } from './kit.ts';
+import { canCompare } from './lib/compare.ts';
 import { libraryUrl, stillThumbUrl, stillViewUrl, useDownload } from './lib/download.ts';
 import { classifyRunwayError } from './lib/runwayErrors.ts';
 import { isUploadFailure, uploadRender } from './lib/uploadRender.ts';
+import { CompareBoard } from './parts/CompareBoard.tsx';
+import { CompareSlider } from './parts/CompareSlider.tsx';
+import { ErrorNote } from './parts/ErrorNote.tsx';
+import { OptionSelect } from './parts/OptionSelect.tsx';
+import { Stage, StageEmpty, StageFrame, StageWorking } from './parts/Stage.tsx';
+import { StarButton, useStar } from './parts/StarButton.tsx';
+import { TakeStrip, type TakeStripItem } from './parts/TakeStrip.tsx';
+import { useKeys } from './parts/useKeys.ts';
+import { BenchGroup, Note, Workbench } from './parts/Workbench.tsx';
 import { trpc } from './trpc.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
 import { FullSize } from './ui/FullSize.tsx';
-import { CompareSlider } from './ui/CompareSlider.tsx';
-import { EmptyState } from './ui/EmptyState.tsx';
 import { ImageDropZone } from './ui/ImageDropZone.tsx';
-import { PageHeader } from './ui/PageHeader.tsx';
-import { RenderingStatus } from './ui/RenderingStatus.tsx';
 import { Buy, useSpend } from './ui/Price.tsx';
-import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
-import { Select } from './ui/Select.tsx';
-import { Switch } from './ui/Switch.tsx';
-import { Text } from './ui/Text.tsx';
-import { TextArea } from './ui/TextArea.tsx';
-import { TextInput } from './ui/TextInput.tsx';
 import { UpscaleStill, type UpscaleJob } from './UpscaleStill.tsx';
 import own from './LocationPage.module.css';
-import styles from './Studio.module.css';
 
 const DIRECTION_MAX = 600;
 const PLACE_MAX = 120;
@@ -66,9 +64,9 @@ type Take = {
 };
 
 export type LocationPageProps = {
-  /** Whether this tab is on screen; a hidden tab skips the library poll. */
+  /** Whether this screen is on screen; a hidden one skips the library poll and its keys. */
   active: boolean;
-  /** Animate a finished take on the Video tab. */
+  /** Animate a finished take on the Video screen. */
   onAnimate: (stillId: string) => void;
 };
 
@@ -134,6 +132,7 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
     refetchInterval: (q) => (active && q.state.data?.stills.some((s) => s.status === 'pending') ? 8_000 : false),
   });
   const saver = useDownload();
+  const star = useStar();
 
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
@@ -155,6 +154,11 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
   const [factor, setFactor] = useState<UpscaleFactor>(2);
   const [take, setTake] = useState<Take | null>(readTake);
   const [manualJob, setManualJob] = useState<UpscaleJob | null>(null);
+  const [comparing, setComparing] = useState(true);
+  const [side, setSide] = useState(false);
+  const [full, setFull] = useState(false);
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
+  const [board, setBoard] = useState(false);
   const upscaleStarted = useRef<string | null>(null);
   // Screenshots picked since the page loaded; a blob from an earlier visit is gone after a reload.
   const liveBlobs = useRef(new Set<string>());
@@ -221,7 +225,7 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
         const { id } = await upscale.mutateAsync({ stillId: t.id, upscaler: t.auto.upscaler, factor: t.auto.factor });
         setTake((cur) => (cur && cur.id === t.id ? { ...cur, upscale: { id } } : cur));
       } catch {
-        // Shown by RunwayErrorNotice from upscale.error.
+        // Shown beside the picture from upscale.error.
       }
     },
     [upscale]
@@ -244,12 +248,10 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
     void startUpscale(next);
   }
 
-  const earlier = useMemo(
-    () =>
-      (library.data?.stills ?? [])
-        .filter((s) => s.location && !s.upscaleOf && s.status === 'succeeded' && s.id !== take?.id)
-        .slice(0, 8),
-    [library.data, take?.id]
+  /** Every finished location take, newest first: the take strip. */
+  const locations = useMemo(
+    () => (library.data?.stills ?? []).filter((s) => s.location && !s.upscaleOf && s.status === 'succeeded').slice(0, 24),
+    [library.data]
   );
   const libUpscale = take
     ? library.data?.stills.find((s) => s.upscaleOf === take.id && s.status === 'succeeded')
@@ -273,7 +275,8 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
     ...(autoUpscale ? [{ preset: upscaler, scale: useFactor }] : []),
   ];
   const spend = useSpend(priceItems);
-  const retrySpend = useSpend([{ preset: take?.auto?.upscaler ?? upscaler, scale: take?.auto?.factor ?? useFactor }]);
+  const retryItems = [{ preset: take?.auto?.upscaler ?? upscaler, scale: take?.auto?.factor ?? useFactor }];
+  const retrySpend = useSpend(retryItems);
   const busy = create.isPending || rendering;
   const ready = coordsOk && Boolean(upload?.hostedUrl);
   const takeError = finished && !resultUrl ? (status.data?.error ?? 'The take did not return an image. Try again.') : undefined;
@@ -364,6 +367,7 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
         resolution,
       });
       setManualJob(null);
+      setSide(false);
       setTake({
         id,
         before: upload.src,
@@ -374,32 +378,105 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
       });
       void utils.library.invalidate();
     } catch {
-      // Shown by RunwayErrorNotice from create.error.
+      // Shown under the button from create.error.
     }
   }
 
-  const showEarlier = useCallback((s: Still) => {
-    upscale.reset();
-    setManualJob(null);
-    setTake({
-      id: s.id,
-      width: s.width,
-      height: s.height,
-      place: s.location ? locationName(s.location) : 'Location',
-    });
-  }, [upscale]);
+  const showEarlier = useCallback(
+    (s: Still) => {
+      upscale.reset();
+      setManualJob(null);
+      setSide(false);
+      setTake({
+        id: s.id,
+        width: s.width,
+        height: s.height,
+        place: s.location ? locationName(s.location) : 'Location',
+      });
+    },
+    [upscale]
+  );
 
-  const aspect = take
-    ? `${take.width} / ${take.height}`
-    : upload
-      ? `${upload.width} / ${upload.height}`
-      : '16 / 9';
+  // With nothing on the stage, the newest location take is shown: reading only, nothing is sent.
+  const showedNewest = useRef(false);
+  useEffect(() => {
+    if (showedNewest.current || take || upload || !locations[0]) return;
+    showedNewest.current = true;
+    showEarlier(locations[0]);
+  }, [take, upload, locations, showEarlier]);
+
+  /** "Reuse settings": the take's place, view, light, direction and model fill the form. Nothing is sent. */
+  function reuse(s: Still) {
+    const loc = s.location;
+    if (!loc) return;
+    setLat(String(loc.lat));
+    setLng(String(loc.lng));
+    setPlace((loc.place ?? '').slice(0, PLACE_MAX));
+    if (VIEWS.some((v) => v.id === loc.view)) setView(loc.view);
+    if (LIGHTS.some((l) => l.id === loc.light)) setLight(loc.light);
+    setDirection((s.direction ?? '').slice(0, DIRECTION_MAX));
+    if (IMAGE_MODELS.some((m) => m.id === s.imageModel)) {
+      setImageModel(s.imageModel);
+      const res = s.resolution && imageResolutions(s.imageModel).some((r) => r.id === s.resolution);
+      setResolution(res ? s.resolution! : highestResolution(s.imageModel));
+    }
+  }
+
+  const ratio = take ? ratioOf(take.width, take.height) : upload ? ratioOf(upload.width, upload.height) : 16 / 9;
+  const aspect = take ? `${take.width} / ${take.height}` : upload ? `${upload.width} / ${upload.height}` : '16 / 9';
   // A blob from an earlier visit is gone after a reload; compare only with a live source.
   const before =
     take?.before && (!take.before.startsWith('blob:') || liveBlobs.current.has(take.before)) ? take.before : undefined;
   const shownName = take?.place ?? 'Location';
   const factorLabel = bestFactor ? `-${bestFactor}x` : '';
   const hasUpscaleCopy = bestIsUpscale;
+  const shownStill = take ? library.data?.stills.find((s) => s.id === take.id) : undefined;
+  const showResult = Boolean(take && resultUrl && !upscaling && bestId);
+
+  // ---- The take strip: every location take, newest first, with the one in progress.
+  const stripItems: TakeStripItem[] = [
+    ...(take && !locations.some((s) => s.id === take.id)
+      ? [
+          {
+            id: take.id,
+            kind: 'still' as const,
+            thumb: resultUrl ? stillThumbUrl(take.id) : before,
+            title: take.place,
+            state: rendering ? ('rendering' as const) : takeError ? ('failed' as const) : ('ready' as const),
+            ratio,
+            progress: rendering ? status.data?.progress : undefined,
+          },
+        ]
+      : []),
+    ...locations.map((s) => ({
+      id: s.id,
+      kind: 'still' as const,
+      thumb: stillThumbUrl(s.id),
+      title: s.location ? locationName(s.location) : 'Location',
+      state: 'ready' as const,
+      ratio: ratioOf(s.width, s.height),
+      since: Date.parse(s.createdAt) || undefined,
+    })),
+  ];
+  const tickedStills = locations.filter((s) => ticked.has(s.id));
+  const compare = canCompare(tickedStills.map(() => ({ kind: 'still' as const })));
+  const order = stripItems.map((i) => i.id);
+  const at = take ? order.indexOf(take.id) : -1;
+  const step = (by: -1 | 1) => {
+    const next = locations.find((s) => s.id === order[at + by]);
+    if (next) showEarlier(next);
+  };
+
+  useKeys(
+    [
+      { key: 'ArrowLeft', onKey: () => step(-1), disabled: at < 0 || busy },
+      { key: 'ArrowRight', onKey: () => step(1), disabled: at < 0 || busy },
+      { key: 's', onKey: () => take && star.toggle('still', take.id), disabled: !showResult },
+      { key: 'c', onKey: () => (compare.ok ? setBoard(true) : setComparing((v) => !v)), disabled: !showResult && !compare.ok },
+      { key: 'f', onKey: () => setFull(true), disabled: !showResult },
+    ],
+    active
+  );
 
   const buttonLabel = create.isPending
     ? 'Starting the render…'
@@ -409,355 +486,406 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
         ? 'Uploading the screenshot…'
         : directionTooLong
           ? 'Shorten the direction first'
-          : !coordsOk
-            ? 'Enter the coordinates first'
-            : !upload
-              ? 'Upload a screenshot first'
+          : !upload
+            ? 'Upload a screenshot first'
+            : !coordsOk
+              ? 'Enter the coordinates first'
               : 'Render location';
 
-  return (
-    <div className={styles.layout}>
-      <div className={styles.controls}>
-        <PageHeader
-          title="Render a location"
-          description="Turn a Google Earth screenshot into a photoreal aerial photograph of the same place, then upscale it for detailed textures."
-        />
-        <Section step={1} title="Location" description="Where the screenshot was taken, in decimal degrees.">
-          <div className={styles.stack}>
-            <div className={own.coords}>
-              <div className={styles.stack}>
-                <TextInput
-                  label="Latitude"
-                  value={lat}
-                  onChange={(v) => setCoord('lat', v)}
-                  placeholder="12.9716"
-                  disabled={busy}
-                />
-                {latError && (
-                  <p className={own.fieldError} role="alert">
-                    {latError}
-                  </p>
-                )}
-              </div>
-              <div className={styles.stack}>
-                <TextInput
-                  label="Longitude"
-                  value={lng}
-                  onChange={(v) => setCoord('lng', v)}
-                  placeholder="77.5946"
-                  disabled={busy}
-                />
-                {lngError && (
-                  <p className={own.fieldError} role="alert">
-                    {lngError}
-                  </p>
-                )}
-              </div>
-            </div>
-            <TextInput
-              label="Place name (optional)"
-              value={place}
-              onChange={setPlace}
-              maxLength={PLACE_MAX}
-              placeholder="e.g. Koramangala, Bengaluru"
-              disabled={busy}
-            />
-            <Text tone="muted" size="sm" as="p">
-              {coordsOk && latNum !== null && lngNum !== null
-                ? formatCoords(latNum, lngNum)
-                : 'Paste "12.9716, 77.5946" into either field to fill both.'}
-            </Text>
-          </div>
-        </Section>
-
-        <Section
-          step={2}
-          title="Satellite image"
-          description="Take a screenshot in Google Earth of that spot, with labels and UI turned off if possible."
-        >
-          <div className={styles.stack}>
-            <ImageDropZone
-              onFile={(f) => void onFile(f)}
-              disabled={busy || uploading}
-              actionLabel={upload ? 'Replace screenshot' : 'Choose a screenshot'}
-            >
-              {upload ? (
-                <figure className={styles.frame} style={{ aspectRatio: `${upload.width} / ${upload.height}` }}>
-                  <img className={styles.image} src={upload.src} alt={`Uploaded screenshot: ${upload.name}`} />
-                </figure>
-              ) : (
-                <div className={own.dropEmpty}>
-                  <MapPinned size={20} aria-hidden />
-                  <Text tone="secondary" size="sm">
-                    Drop your Google Earth screenshot here. PNG, JPEG or WebP.
-                  </Text>
-                </div>
-              )}
-            </ImageDropZone>
-            {uploading && (
-              <Text tone="muted" size="sm" as="p">
-                Uploading the screenshot…
-              </Text>
-            )}
-            <RunwayErrorNotice error={uploadError} modelName="the upload" onRetry={() => setUploadError(null)} />
-          </div>
-        </Section>
-
-        <Section step={3} title="View and light" description="Small moves only. Nothing new is added to the site.">
-          <div className={styles.stack}>
-            <Select
-              label="View"
-              options={VIEWS}
-              value={view}
-              onChange={(id) => setView(id as LocationViewId)}
-              disabled={busy}
-            />
-            <Select
-              label="Light"
-              options={LIGHTS}
-              value={light}
-              onChange={(id) => setLight(id as LocationLightId)}
-              disabled={busy}
-            />
-            <TextArea
-              label="Extra direction (optional)"
-              value={direction}
-              onChange={setDirection}
-              rows={3}
-              maxLength={DIRECTION_MAX}
-              disabled={busy}
-              placeholder="e.g. monsoon season, dry paddy fields, tiled roofs"
-              onSubmit={() => void run()}
-            />
-          </div>
-        </Section>
-
-        <Section step={4} title="Model" description="Re-draws the screenshot as a photograph.">
-          <div className={styles.selectRow}>
-            <Select
-              label="Image model"
-              options={IMAGE_MODELS}
-              value={imageModel}
-              onChange={(id) => {
-                const m = id as ImageModelId;
-                setImageModel(m);
-                setResolution(highestResolution(m));
-              }}
-              disabled={busy}
-            />
-            {imageResolutions(imageModel).length > 1 && (
-              <Select
-                label="Resolution"
-                options={imageResolutions(imageModel)}
-                value={resolution}
-                onChange={setResolution}
-                disabled={busy}
-                showHint={false}
+  // ---- The stage.
+  const stage = (
+    <Stage
+      title={take ? shownName : 'Location'}
+      caption={
+        take
+          ? showResult
+            ? `Saved to your library, tagged @location${hasUpscaleCopy && bestFactor ? `, upscaled ${bestFactor}×` : ''}`
+            : undefined
+          : upload
+            ? `${upload.name}, ${upload.width} × ${upload.height}`
+            : 'A Google Earth screenshot, made into a photograph of the same place'
+      }
+      actions={
+        take && showResult && bestId ? (
+          <>
+            {before && (
+              <ToggleButton
+                label="Compare with your screenshot"
+                tooltip="Compare with your screenshot (C)"
+                size="sm"
+                isIconOnly
+                icon={<Columns2 size={16} />}
+                isPressed={comparing}
+                onPressedChange={(on: boolean) => setComparing(on)}
               />
             )}
-          </div>
-        </Section>
-
-        <Section step={5} title="Upscale" description="Adds fine texture to the finished render.">
-          <div className={styles.stack}>
-            <Switch
-              label="Upscale automatically when the render is done"
-              hint="Off: you can upscale the result by hand."
-              checked={autoUpscale}
-              onChange={setAutoUpscale}
-              disabled={busy}
+            <FullSize
+              src={libraryUrl('still', bestId)}
+              kind="still"
+              title={shownName}
+              alt={`Location still: ${shownName}`}
+              iconOnly
+              isOpen={full}
+              onOpenChange={setFull}
             />
-            {autoUpscale && (
-              <div className={own.upscaleRow}>
-                <Select
-                  label="Upscaler"
-                  options={STILL_UPSCALERS}
-                  value={upscaler}
-                  onChange={(id) => setUpscaler(id as StillUpscalerId)}
-                  disabled={busy}
-                />
-                <Select
-                  label="Scale"
-                  options={factorChoices}
-                  value={String(useFactor)}
-                  onChange={(id) => setFactor(id === '4' ? 4 : 2)}
-                  disabled={busy}
-                  showHint={false}
-                />
-              </div>
+            <StarButton kind="still" id={take.id} />
+            <IconButton
+              label={saver.pending ? saver.label(hasUpscaleCopy ? 'Download upscaled' : 'Download') : hasUpscaleCopy ? 'Download upscaled' : 'Download'}
+              tooltip={saver.pending ? saver.label('Download') : hasUpscaleCopy ? 'Download upscaled' : 'Download'}
+              size="sm"
+              variant="ghost"
+              isLoading={saver.pending}
+              icon={<Download size={16} />}
+              onClick={() => saver.start(libraryUrl('still', bestId), `location-${slugify(shownName)}${factorLabel}.png`)}
+            />
+            {shownStill?.location && (
+              <IconButton
+                label="Reuse settings"
+                tooltip="Fill the form with how this was made"
+                size="sm"
+                variant="ghost"
+                icon={<SlidersHorizontal size={16} />}
+                isDisabled={busy}
+                onClick={() => reuse(shownStill)}
+              />
             )}
-          </div>
-        </Section>
-
-        <div className={styles.actionBar}>
-          <Buy items={priceItems}>
-            <Button
-              variant="primary"
-              className={styles.generate}
-              icon={<MapPinned size={16} />}
-              loading={busy}
-              disabled={!ready || directionTooLong || spend.blocked}
-              onPress={() => void run()}
-            >
-              {buttonLabel}
-            </Button>
-          </Buy>
-          <Text tone="muted" size="sm" as="p" className={styles.meta}>
-            {imageModelName(imageModel)}
-            {autoUpscale ? `, then upscaled ${useFactor}× with ${upscalerName(upscaler)}` : ''}. Each picture shows its price before you make it.
-          </Text>
-          <RunwayErrorNotice error={create.error} modelName={imageModelName(imageModel)} onRetry={() => void run()} />
-        </div>
-      </div>
-
-      <div className={styles.result} data-stage>
-        <Section title="Photoreal location">
-          {take && resultUrl && !upscaling && bestId ? (
-            <>
-              {before ? (
-                <CompareSlider
-                  before={before}
-                  after={stillViewUrl(bestId)}
-                  afterFallback={stillThumbUrl(bestId)}
-                  beforeAlt="The Google Earth screenshot"
-                  afterAlt={`Photoreal aerial photograph of ${shownName}`}
-                  aspectRatio={aspect}
-                />
-              ) : (
-                <div className={styles.resultFrame} style={{ aspectRatio: aspect, ['--ar' as string]: aspect }}>
-                  <img
-                    className={styles.image}
-                    src={stillViewUrl(bestId)}
-                    alt={`Photoreal aerial photograph of ${shownName}`}
-                    decoding="async"
-                  />
-                </div>
-              )}
-              {saver.error && (
-                <Alert tone="error" title="Download failed">
-                  {saver.error}
-                </Alert>
-              )}
-              {upscaleError || upscaleFailed ? (
-                <div className={styles.upscale}>
-                  <RunwayErrorNotice
-                    error={upscaleError ?? { message: upscaleStatus.data?.error ?? 'The upscale did not return an image.' }}
-                    modelName={upscalerName(take.auto?.upscaler ?? upscaler)}
-                    onRetry={upscalePollError ? () => void upscaleStatus.refetch() : retryUpscale}
-                  />
-                  {upscalePollError ? (
-                    <Button size="sm" loading={upscaleStatus.isFetching} onPress={() => void upscaleStatus.refetch()}>
-                      Check again
-                    </Button>
-                  ) : (
-                    <Button size="sm" disabled={retrySpend.blocked} onPress={retryUpscale}>
-                      Retry the upscale
-                    </Button>
-                  )}
-                </div>
-              ) : null}
-              <div className={styles.resultActions}>
+            {!take.auto && !hasUpscaleCopy && (
+              <ToggleButton
+                label="Upscale"
+                tooltip="Upscale"
+                size="sm"
+                isIconOnly
+                icon={<ImageUpscale size={16} />}
+                isPressed={side}
+                onPressedChange={(on: boolean) => setSide(on)}
+              />
+            )}
+            <span className={own.gap} />
+            <Button label="Make a video" size="sm" icon={<Clapperboard size={16} />} onClick={() => onAnimate(bestId)} />
+          </>
+        ) : undefined
+      }
+      below={
+        <>
+          {saver.error && <Banner status="error" title="The download did not finish" description={saver.error} />}
+          {take && showResult && (upscaleError || upscaleFailed) && (
+            <div className={own.upscaleError}>
+              <ErrorNote error={upscaleError ?? { message: upscaleStatus.data?.error ?? 'The upscale did not return an image.' }} />
+              {upscalePollError ? (
                 <Button
-                  icon={<Download size={16} />}
-                  loading={saver.pending}
-                  onPress={() =>
-                    saver.start(libraryUrl('still', bestId), `location-${slugify(shownName)}${factorLabel}.png`)
-                  }
-                >
-                  {saver.label(hasUpscaleCopy ? 'Download upscaled' : 'Download')}
-                </Button>
-                <FullSize src={libraryUrl('still', bestId)} kind="still" title={shownName} alt={`Location still: ${shownName}`} />
-                <Button icon={<Clapperboard size={16} />} onPress={() => onAnimate(bestId)}>
-                  Make a video
-                </Button>
-                <Text tone="muted" size="sm" className={styles.resultNote}>
-                  {shownName}. Saved to your library, tagged @location.
-                  {before ? ' Drag the divider to compare with your screenshot.' : ''}
-                </Text>
-              </div>
-              {!take.auto && !hasUpscaleCopy && (
-                <UpscaleStill
-                  stillId={take.id}
-                  aspectRatio={aspect}
-                  name={`location-${slugify(shownName)}`}
-                  job={manualJob}
-                  onJob={setManualJob}
+                  label="Check again"
+                  size="sm"
+                  isLoading={upscaleStatus.isFetching}
+                  onClick={() => void upscaleStatus.refetch()}
                 />
-              )}
-            </>
-          ) : (
-            <div className={styles.resultFrame} style={{ aspectRatio: aspect, ['--ar' as string]: aspect }}>
-              {rendering && status.error ? (
-                <div className={styles.frameAlert}>
-                  <Alert tone="warning" title="Lost track of the take">
-                    {statusErr?.message ?? 'The status check failed.'} The render may still be
-                    running, so check again before starting another.
-                  </Alert>
-                  <div className={styles.resultActions}>
-                    <Button size="sm" loading={status.isFetching} onPress={() => void status.refetch()}>
-                      Check again
-                    </Button>
-                    <Button size="sm" variant="ghost" onPress={() => setTake(null)}>
-                      Stop waiting
-                    </Button>
-                  </div>
-                </div>
-              ) : rendering || create.isPending ? (
-                <RenderingStatus
-                  label={create.isPending ? 'Starting the take…' : 'Rendering the location…'}
-                  progress={status.data?.progress}
-                  runKey={take?.id}
-                />
-              ) : upscaling ? (
-                <RenderingStatus
-                  label={`Upscaling ${take?.auto?.factor ?? useFactor}× for detailed textures…`}
-                  progress={upscaleStatus.data?.progress}
-                  runKey={upscaleId ?? take?.id}
-                />
-              ) : takeError ? (
-                <div className={styles.frameAlert}>
-                  <Alert tone="error" title="The take didn't finish">
-                    {takeError}
-                  </Alert>
-                </div>
-              ) : upload ? (
-                <img className={styles.image} src={upload.src} alt="The screenshot to render" decoding="async" />
               ) : (
-                <EmptyState
-                  title="Your photoreal location will appear here"
-                  hint="Enter the coordinates, upload a Google Earth screenshot, then press Render location."
-                />
+                <Buy items={retryItems}>
+                  <Button label="Retry the upscale" size="sm" isDisabled={retrySpend.blocked} onClick={retryUpscale} />
+                </Buy>
               )}
             </div>
           )}
-        </Section>
-        {earlier.length > 0 && (
-          <div className={styles.below}>
-            <Section title="Earlier locations">
-              <div className={own.earlier}>
-                {earlier.map((s) => {
-                  const name = s.location ? locationName(s.location) : 'this take';
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={own.earlierCard}
-                      onClick={() => showEarlier(s)}
-                      aria-label={`Show ${name}`}
-                    >
-                      <img className={own.earlierThumb} src={stillThumbUrl(s.id)} alt="" loading="lazy" decoding="async" />
-                      <Text tone="muted" size="sm">
-                        {name}
-                      </Text>
-                    </button>
-                  );
-                })}
-              </div>
-            </Section>
+          {take && rendering && status.error && (
+            <Banner
+              status="warning"
+              title="Lost track of the take"
+              description={`${statusErr?.message ?? 'The status check failed.'} The render may still be running, so check again before starting another.`}
+              endContent={
+                <span className={own.row}>
+                  <Button label="Check again" size="sm" isLoading={status.isFetching} onClick={() => void status.refetch()} />
+                  <Button label="Stop waiting" size="sm" variant="ghost" onClick={() => setTake(null)} />
+                </span>
+              }
+            />
+          )}
+          {takeError && <Banner status="error" title="The take didn't finish" description={takeError} />}
+        </>
+      }
+    >
+      {showResult && bestId ? (
+        <StageFrame ratio={ratio}>
+          {before && comparing ? (
+            <CompareSlider
+              before={before}
+              after={stillViewUrl(bestId)}
+              afterFallback={stillThumbUrl(bestId)}
+              beforeAlt="The Google Earth screenshot"
+              afterAlt={`Photoreal aerial photograph of ${shownName}`}
+              beforeLabel="Screenshot"
+              afterLabel="Photograph"
+            />
+          ) : (
+            <img src={stillViewUrl(bestId)} alt={`Photoreal aerial photograph of ${shownName}`} decoding="async" />
+          )}
+        </StageFrame>
+      ) : (rendering && !status.error) || create.isPending || upscaling ? (
+        <StageFrame ratio={ratio} dim>
+          {(before ?? upload?.src) && <img src={before ?? upload!.src} alt="The screenshot being rendered" />}
+          <StageWorking
+            label={
+              create.isPending
+                ? 'Starting the take'
+                : upscaling
+                  ? `Upscaling ${take?.auto?.factor ?? useFactor}× for detailed textures`
+                  : 'Rendering the location'
+            }
+            progress={upscaling ? upscaleStatus.data?.progress : status.data?.progress}
+            runKey={upscaling ? (upscaleId ?? take?.id) : take?.id}
+          />
+        </StageFrame>
+      ) : upload ? (
+        <StageFrame ratio={ratioOf(upload.width, upload.height)}>
+          <img src={upload.src} alt="The screenshot to render" decoding="async" />
+        </StageFrame>
+      ) : (
+        <StageEmpty
+          title="Your photoreal location will appear here"
+          hint="Drop a Google Earth screenshot, enter where it was taken, then press Render location."
+        />
+      )}
+    </Stage>
+  );
+
+  const sidePanel =
+    side && take && showResult && !take.auto && !hasUpscaleCopy ? (
+      <UpscaleStill
+        key={`up-${take.id}`}
+        stillId={take.id}
+        aspectRatio={aspect}
+        name={`location-${slugify(shownName)}`}
+        job={manualJob}
+        onJob={setManualJob}
+      />
+    ) : undefined;
+
+  const strip =
+    stripItems.length > 0 ? (
+      <TakeStrip
+        label="Locations"
+        items={stripItems}
+        value={take?.id ?? null}
+        onChange={(id) => {
+          const s = locations.find((x) => x.id === id);
+          if (s && !busy) showEarlier(s);
+        }}
+        ticked={ticked}
+        onTick={(id) =>
+          setTicked((cur) => {
+            const next = new Set(cur);
+            if (next.has(id)) next.delete(id);
+            else if (next.size < 4) next.add(id);
+            return next;
+          })
+        }
+        actions={
+          ticked.size > 0 ? (
+            <>
+              <Button label="Clear ticks" size="sm" variant="ghost" onClick={() => setTicked(new Set())} />
+              <Button
+                label={`Compare ${tickedStills.length}`}
+                size="sm"
+                isDisabled={!compare.ok}
+                tooltip={compare.ok ? 'Compare side by side (C)' : compare.why}
+                onClick={() => setBoard(true)}
+              />
+            </>
+          ) : undefined
+        }
+      />
+    ) : undefined;
+
+  // ---- The controls: the screenshot and the place lead.
+  const controls = (
+    <>
+      <BenchGroup
+        title="Screenshot"
+        description="A Google Earth screenshot of the spot, with labels and the interface turned off if possible."
+      >
+        <ImageDropZone
+          onFile={(f) => void onFile(f)}
+          disabled={busy || uploading}
+          actionLabel={upload ? 'Replace screenshot' : 'Choose a screenshot'}
+        >
+          {upload ? (
+            <figure className={own.source} style={{ aspectRatio: `${upload.width} / ${upload.height}` }}>
+              <img src={upload.src} alt={`Uploaded screenshot: ${upload.name}`} data-dim={uploading || undefined} />
+            </figure>
+          ) : (
+            <div className={own.drop}>
+              <MapPinned size={18} aria-hidden />
+              <Text type="supporting">Drop your Google Earth screenshot here.</Text>
+            </div>
+          )}
+        </ImageDropZone>
+        {uploading && <Note>Uploading the screenshot…</Note>}
+        <ErrorNote error={uploadError} />
+      </BenchGroup>
+
+      <BenchGroup title="Place" description="Where the screenshot was taken, in decimal degrees.">
+        <div className={own.pair}>
+          <TextInput
+            label="Latitude"
+            value={lat}
+            onChange={(v: string) => setCoord('lat', v)}
+            placeholder="For example 51.5072"
+            isDisabled={busy}
+            status={latError ? { type: 'error', message: latError } : undefined}
+            statusVariant="detached"
+            inputMode="decimal"
+            width="100%"
+          />
+          <TextInput
+            label="Longitude"
+            value={lng}
+            onChange={(v: string) => setCoord('lng', v)}
+            placeholder="For example -0.1276"
+            isDisabled={busy}
+            status={lngError ? { type: 'error', message: lngError } : undefined}
+            statusVariant="detached"
+            inputMode="decimal"
+            width="100%"
+          />
+        </div>
+        <TextInput
+          label="Place name"
+          isOptional
+          value={place}
+          onChange={(v: string) => setPlace(v.slice(0, PLACE_MAX))}
+          placeholder="For example: Kensington, London"
+          isDisabled={busy}
+          width="100%"
+        />
+        <Note>
+          {coordsOk && latNum !== null && lngNum !== null
+            ? formatCoords(latNum, lngNum)
+            : 'Paste "12.9716, 77.5946" into either field to fill both.'}
+        </Note>
+      </BenchGroup>
+
+      <BenchGroup title="View and light" description="Small moves only. Nothing new is added to the site.">
+        <OptionSelect label="View" options={VIEWS} value={view} onChange={(id) => setView(id as LocationViewId)} disabled={busy} />
+        <OptionSelect label="Light" options={LIGHTS} value={light} onChange={(id) => setLight(id as LocationLightId)} disabled={busy} />
+        <TextArea
+          label="Extra direction"
+          isOptional
+          value={direction}
+          onChange={setDirection}
+          rows={3}
+          maxLength={DIRECTION_MAX}
+          isDisabled={busy}
+          placeholder="For example: autumn, wet pavements, lamps on"
+          width="100%"
+        />
+      </BenchGroup>
+
+      <BenchGroup title="Model" description="Re-draws the screenshot as a photograph.">
+        <div className={own.pair}>
+          <OptionSelect
+            label="Image model"
+            options={IMAGE_MODELS}
+            value={imageModel}
+            onChange={(id) => {
+              const m = id as ImageModelId;
+              setImageModel(m);
+              setResolution(highestResolution(m));
+            }}
+            disabled={busy}
+            showHint={false}
+          />
+          <OptionSelect
+            label="Resolution"
+            options={imageResolutions(imageModel)}
+            value={resolution}
+            onChange={setResolution}
+            disabled={busy || imageResolutions(imageModel).length < 2}
+            showHint={false}
+          />
+        </div>
+      </BenchGroup>
+
+      <BenchGroup title="Upscale" description="Adds fine texture to the finished render.">
+        <Switch
+          label="Upscale automatically when the render is done"
+          description="Off: you can upscale the result by hand."
+          value={autoUpscale}
+          onChange={setAutoUpscale}
+          isDisabled={busy}
+        />
+        {autoUpscale && (
+          <div className={own.pair}>
+            <OptionSelect
+              label="Upscaler"
+              options={STILL_UPSCALERS}
+              value={upscaler}
+              onChange={(id) => setUpscaler(id as StillUpscalerId)}
+              disabled={busy}
+              showHint={false}
+            />
+            <OptionSelect
+              label="Scale"
+              options={factorChoices}
+              value={String(useFactor)}
+              onChange={(id) => setFactor(id === '4' ? 4 : 2)}
+              disabled={busy}
+              showHint={false}
+            />
           </div>
         )}
-      </div>
-    </div>
+      </BenchGroup>
+    </>
+  );
+
+  const foot = (
+    <>
+      <Buy items={priceItems}>
+        <Button
+          label={buttonLabel}
+          variant="primary"
+          icon={<MapPinned size={16} />}
+          width="100%"
+          isLoading={busy}
+          isDisabled={!ready || directionTooLong || spend.blocked}
+          onClick={() => void run()}
+        />
+      </Buy>
+      <Note>
+        {imageModelName(imageModel)}
+        {autoUpscale ? `, then upscaled ${useFactor}× with ${upscalerName(upscaler)}` : ''}. Each picture shows its price
+        before you make it.
+      </Note>
+      <ErrorNote error={create.error} />
+    </>
+  );
+
+  return (
+    <>
+      <Workbench
+        label="Location settings"
+        saveId="location-controls"
+        controls={controls}
+        foot={foot}
+        stage={stage}
+        strip={strip}
+        side={sidePanel}
+      />
+      <CompareBoard
+        isOpen={board && compare.ok}
+        onClose={() => setBoard(false)}
+        items={tickedStills.map((s) => ({
+          id: s.id,
+          kind: 'still' as const,
+          src: stillViewUrl(s.id),
+          title: s.location ? locationName(s.location) : 'Location',
+          ratio: ratioOf(s.width, s.height),
+        }))}
+        pickLabel="Put on the stage"
+        onPick={(id) => {
+          const s = locations.find((x) => x.id === id);
+          if (s && !busy) showEarlier(s);
+          setBoard(false);
+        }}
+      />
+    </>
   );
 }
 

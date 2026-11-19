@@ -1,11 +1,9 @@
-import { LoaderCircle, Trash2, Users } from 'lucide-react';
+import { Trash2, Users } from 'lucide-react';
 
+import { Banner, Button, StatusDot, Text } from './kit.ts';
 import { errorMessage } from './lib/runwayErrors.ts';
-import { Alert } from './ui/Alert.tsx';
-import { Button } from './ui/Button.tsx';
 import { ImageDropZone } from './ui/ImageDropZone.tsx';
-import { Text } from './ui/Text.tsx';
-import styles from './Studio.module.css';
+import styles from './parts/RefField.module.css';
 
 /** The cast sheet the visitor picked: a local preview, and its hosted URL once uploaded. */
 export type CastSheet = {
@@ -30,9 +28,8 @@ export type CastSheetFieldProps = {
 };
 
 /**
- * The optional second drop zone in the People section: photos of the people
- * to cast. Smaller than the render's zone, with a thumbnail and Remove once
- * uploaded, and a plain notice when the model can't take it.
+ * The optional second picture in the People group: photos of the people to cast. Small, with
+ * its name and Remove once in, and a plain notice when the model can't take it.
  */
 export function CastSheetField({
   sheet,
@@ -47,84 +44,55 @@ export function CastSheetField({
 }: CastSheetFieldProps) {
   const locked = disabled || uploading || !supported;
   return (
-    <div className={styles.cast}>
-      <div className={styles.castHead}>
-        <Text as="span" size="sm" className={styles.castTitle}>
-          Cast sheet (optional)
-        </Text>
-        <Text tone="muted" size="sm" as="p">
-          Photos of the people to cast; their faces, build and clothing are matched
+    <div className={styles.field}>
+      <div className={styles.head}>
+        <Text type="label">Cast sheet</Text>
+        <Text type="supporting" as="p">
+          Optional. Photos of the people to cast; their faces, build and clothing are matched.
         </Text>
       </div>
 
-      <div className={styles.castBody}>
-        <div className={styles.castZone}>
-          <ImageDropZone
-            onFile={onFile}
-            disabled={locked}
-            actionLabel={sheet ? 'Replace' : 'Choose photo'}
-          >
-            {sheet ? (
-              <figure className={styles.castThumb}>
-                <img
-                  className={styles.image}
-                  src={sheet.src}
-                  alt={`Cast sheet: ${sheet.name}`}
-                  data-dimmed={uploading || !supported ? '' : undefined}
-                />
-                {uploading && (
-                  <span className={styles.castLoader} role="status">
-                    <LoaderCircle size={18} className={styles.castSpin} aria-hidden />
-                    <span>Uploading…</span>
-                  </span>
-                )}
-              </figure>
-            ) : (
-              <div className={styles.castEmpty}>
-                {uploading ? (
-                  <LoaderCircle size={18} className={styles.castSpin} aria-hidden />
-                ) : (
-                  <Users size={18} aria-hidden />
-                )}
-                <span>{uploading ? 'Uploading…' : 'Drop a cast sheet here'}</span>
-              </div>
-            )}
-          </ImageDropZone>
-        </div>
-
-        <div className={styles.castSide}>
-          {sheet && (
-            <>
-              <Text tone="muted" size="sm" as="p" className={styles.castName}>
-                {sheet.name}
+      <ImageDropZone onFile={onFile} disabled={locked} actionLabel={sheet ? 'Replace' : 'Choose photo'}>
+        {sheet ? (
+          <div className={styles.body}>
+            <figure className={styles.thumb}>
+              <img src={sheet.src} alt={`Cast sheet: ${sheet.name}`} data-dim={uploading || !supported || undefined} />
+              {uploading && (
+                <span className={styles.state}>
+                  <StatusDot variant="accent" label="Uploading" tooltip="Uploading" isPulsing />
+                </span>
+              )}
+            </figure>
+            <div className={styles.side}>
+              <Text type="supporting" maxLines={1}>
+                {uploading ? 'Uploading…' : sheet.name}
               </Text>
               <Button
+                label="Remove"
                 size="sm"
                 variant="ghost"
                 icon={<Trash2 size={14} />}
-                disabled={disabled || uploading}
-                onPress={onRemove}
-                aria-label="Remove cast sheet"
-              >
-                Remove
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+                isDisabled={disabled || uploading}
+                onClick={onRemove}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className={styles.empty} data-disabled={locked || undefined}>
+            <Users size={16} aria-hidden />
+            <Text type="supporting">{uploading ? 'Uploading…' : 'Drop a cast sheet here'}</Text>
+          </div>
+        )}
+      </ImageDropZone>
 
       {!supported && (
-        <Alert tone="warning" title="No cast sheet with this model">
-          {modelName} can&rsquo;t take a cast sheet
-          {alternatives.length > 0 ? `; pick ${alternatives.join(' or ')}` : ''}.
-          {sheet ? ' Your uploaded sheet is kept but will not be sent.' : ''}
-        </Alert>
+        <Banner
+          status="warning"
+          title="No cast sheet with this model"
+          description={`${modelName} can’t take a cast sheet${alternatives.length > 0 ? `; pick ${alternatives.join(' or ')}` : ''}.${sheet ? ' Your uploaded sheet is kept but will not be sent.' : ''}`}
+        />
       )}
-      {error != null && (
-        <Alert tone="error" title="The cast sheet didn't upload">
-          {errorMessage(error)}
-        </Alert>
-      )}
+      {error != null && <Banner status="error" title="The cast sheet didn't upload" description={errorMessage(error)} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 
 import { documentStore } from '../storage.ts';
-import type { Project, ProjectSummary } from '../shared/project.ts';
+import { projectSpentCents, type Project, type ProjectSummary } from '../shared/project.ts';
 
 /**
  * Every project is one JSON document under `projects/<id>.json` in the app's
@@ -79,6 +79,8 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       imageCount: p.images.length,
       masterCount: p.images.filter((i) => i.master?.locked).length,
       thumbKeys: p.images.slice(0, 4).map((i) => i.thumbKey),
+      spentCents: projectSpentCents(p),
+      filmReady: p.film?.state === 'succeeded',
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }

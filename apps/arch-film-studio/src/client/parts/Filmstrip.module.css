@@ -1,0 +1,69 @@
+/* The strip along the foot of the focus view. */
+
+.strip {
+  display: flex;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-1);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.item {
+  position: relative;
+  flex: none;
+}
+
+.hit {
+  display: block;
+  height: 64px;
+  aspect-ratio: var(--ar);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-element);
+  overflow: hidden;
+  background: var(--color-background-body);
+  cursor: pointer;
+  opacity: 0.62;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.hit:hover {
+  opacity: 0.9;
+}
+
+.item[data-active] .hit {
+  opacity: 1;
+  outline-color: var(--color-accent);
+}
+
+.hit:focus-visible {
+  outline-color: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hit {
+    transition: opacity 120ms ease;
+  }
+}
+
+.img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.dot {
+  position: absolute;
+  right: var(--spacing-1);
+  bottom: var(--spacing-1);
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  background: var(--studio-scrim-strong);
+  pointer-events: none;
+}
