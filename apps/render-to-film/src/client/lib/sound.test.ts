@@ -14,6 +14,7 @@ test('a clip starts muted and is asked to play', async () => {
   startMuted(v);
   assert.equal(v.muted, true);
   assert.equal(v.defaultMuted, true);
+  assert.equal((v as { loop?: boolean }).loop, true);
   assert.equal(plays, 1);
   const playing = { muted: false, defaultMuted: false, paused: false, play: async () => void plays++ };
   startMuted(playing);
@@ -27,12 +28,14 @@ test('a refused play is not an error', async () => {
   await new Promise((r) => setTimeout(r, 0));
 });
 
-test('a press asks a playing clip to play (so it may have its sound), never a paused one', () => {
+test('a press asks a playing or finished clip to play (so it may have its sound), never one paused part way', () => {
   let plays = 0;
   blessPlaying({ muted: true, defaultMuted: true, paused: false, play: async () => void plays++ });
   assert.equal(plays, 1);
   blessPlaying({ muted: true, defaultMuted: true, paused: true, play: async () => void plays++ });
   assert.equal(plays, 1);
+  blessPlaying({ muted: true, defaultMuted: true, paused: true, ended: true, play: async () => void plays++ });
+  assert.equal(plays, 2, 'a clip at its end starts again');
   blessPlaying(null);
 });
 
