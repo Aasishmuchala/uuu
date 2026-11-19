@@ -75,7 +75,7 @@ export function Timeline({ items = [], now }) {
           <div class="k-timeline__text">
             <span class="k-timeline__title">
               ${it.kind === "check" && html`<${Icon} name="check" size=${14} label="Check" />`}
-              <span>${text(it.title)}</span>
+              <span title=${text(it.title) || undefined}>${text(it.title)}</span>
             </span>
             <span class="k-timeline__meta">
               ${who && html`<span>${text(who.name)}</span>`}

@@ -56,4 +56,16 @@ test("Timeline: a hairline spine, a 7 px dot in each step's tone, 13 px entries,
   assert.equal(withClass(root, "k-timeline__bar").length, 0);
 });
 
+// S-page-2b621398 (stress pass 2): a step's title is cut with an ellipsis at 1280 px ("Check the pr..."); the whole
+// title is its tooltip, so it can always be read.
+test("Timeline: a step's title, cut to one line, carries the whole title as its tooltip", async () => {
+  const { Timeline } = await load("timeline");
+  assert.match(css("kit/timeline.css"), /\.k-timeline__title > span\s*\{[^}]*text-overflow: ellipsis;/);
+  const long = "Check the price list against last year's quotations and the supplier's new sheet";
+  const root = showNow(Timeline, { items: [{ id: "a", title: long, state: "waiting", startedAt: new Date().toISOString(), endedAt: null, durationMs: 1000 }] });
+  const inner = withClass(root, "k-timeline__title")[0].childNodes.filter((n) => n.nodeType === 1 && n.localName === "span");
+  assert.equal(inner.length, 1);
+  assert.equal(inner[0].getAttribute("title"), long);
+});
+
 compositeSheetTests("timeline");
