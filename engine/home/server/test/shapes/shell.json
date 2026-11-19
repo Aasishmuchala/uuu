@@ -4,6 +4,7 @@
   },
   "counts": {
     "needsYou": 5,
+    "partial": false,
     "running": 2,
     "tasksOpen": 6
   },
@@ -30,6 +31,7 @@
   },
   "generatedAt": "2026-11-11T09:00:00.000Z",
   "queue": { "ahead": 2 },
+  "notConnected": [],
   "dock": [
     {
       "id": "brain",

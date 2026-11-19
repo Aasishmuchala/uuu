@@ -120,7 +120,9 @@ export default function register(app) {
       : null;
     const inbox = await inboxRead;
 
-    const counts = { needsYou: inbox.counts.total, running: 0, tasksOpen: 0 };
+    // partial: a source of the inbox was not read (not answering, or failed), so needsYou is a floor, not the whole
+    // count (REVIEW-STRESS 2); notConnected says which, in the inbox's own words.
+    const counts = { needsYou: inbox.counts.total, partial: inbox.notConnected.length > 0, running: 0, tasksOpen: 0 };
     if (data) {
       const ids = ctx.ids();
       if (ids?.projectId) {
@@ -161,6 +163,7 @@ export default function register(app) {
       engine,
       dock: dockOf(ctx, data, inbox, team, goals),
       queue,
+      notConnected: inbox.notConnected.map((n) => ({ source: n.source, reason: n.reason })),
       // PLAN-DESKTOP T7: { n, role } on a seat's port (a second PC through the remote door). On the Mac's own port the
       // key is left out, so its answer stays as it was (read as `seat: null`).
       ...(ctx.seat ? { seat: { n: ctx.seat.n, role: ctx.seat.role } } : {}),

@@ -85,3 +85,15 @@ test("the shell shows the offline line from useEngineDown even with old data on 
   assert.match(src, /const offline = shell\.error && !shell\.data \? shell\.error : down;/);
   assert.match(src, /<p class="s-offline" role="status">\$\{offline\.message\}/);
 });
+
+test("a partial Needs-you count is read as a floor: 'at least' and a plus (REVIEW-STRESS 2)", async () => {
+  const { needsLabel } = await load("shell/topbar.js");
+  assert.equal(needsLabel(3), "Needs you, 3 waiting");
+  assert.equal(needsLabel(3, true), "Needs you, at least 3 waiting: a part did not answer");
+  assert.equal(needsLabel(0, true), "Needs you, at least 0 waiting: a part did not answer");
+  const side = read("shell/sidenav.js");
+  assert.match(side, /const partial = shell\?\.counts\?\.partial === true;/);
+  assert.match(side, /label=\$\{needsLabel\(needs, partial\)\}.*more=\$\{partial\}/);
+  assert.match(side, /more \? `\$\{count\}\+` : count/);
+  assert.match(read("shell/topbar.js"), /needsLabel\(needs, shell\?\.counts\?\.partial === true\)/);
+});

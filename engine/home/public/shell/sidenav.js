@@ -116,8 +116,9 @@ function systemDark() {
 
 // One row. `label` is its name for a screen reader and its tooltip when the sidebar shows icons only. `count` is a
 // number in the right-hand column; `chip` makes it the kit's chip (Needs you); `mark` is a dot, red only.
-function Go({ href, icon, title, label, current, count, chip, mark, onClick }) {
-  const text = count > 99 ? "99+" : count;
+// more: the count is a floor (a part did not answer), shown with a plus.
+function Go({ href, icon, title, label, current, count, chip, mark, onClick, more = false }) {
+  const text = count > 99 ? "99+" : more ? `${count}+` : count;
   const n = count
     ? chip
       ? html`<span class="k-tag k-tag--info s-go-count s-go-count--chip u-num" aria-hidden="true">${text}</span>`
@@ -138,6 +139,7 @@ function Go({ href, icon, title, label, current, count, chip, mark, onClick }) {
 export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, settings, onSaveSettings, setup }) {
   const name = cap(shell?.company?.name, 40) || "Home";
   const needs = whole(shell?.counts?.needsYou);
+  const partial = shell?.counts?.partial === true;
   const dot = engineDot(shell?.engine);
   const here = sideCurrent(routeId, mode);
   const start = setupItem(setup);
@@ -150,7 +152,7 @@ export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, set
         <span class="s-brand-mark" aria-hidden="true">${name.slice(0, 1).toUpperCase()}</span>
         <span class="s-brand-name u-truncate" aria-hidden="true">${name}</span>
       </a>
-      <${Go} href="#/needs-you" icon="inbox" title="Needs you" label=${needsLabel(needs)} current=${here === "needs-you"} count=${needs} chip=${true} />
+      <${Go} href="#/needs-you" icon="inbox" title="Needs you" label=${needsLabel(needs, partial)} current=${here === "needs-you"} count=${needs} chip=${true} more=${partial} />
       ${start ? html`
         <${Go} href=${start.href} icon=${start.icon} title=${start.title} label=${start.label} current=${here === "setup"} count=${start.count} />` : null}
       ${PLACES.map((p) => html`

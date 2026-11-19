@@ -34,8 +34,10 @@ export function seatLine(shell) {
 }
 
 // The name of Needs you (the sidebar's row, the Queue button, the phone's tab) for a screen reader.
-export function needsLabel(n) {
+// partial: a part did not answer, so the count is a floor (REVIEW-STRESS 2).
+export function needsLabel(n, partial = false) {
   const v = Math.max(0, Math.floor(Number(n) || 0));
+  if (partial) return `Needs you, at least ${v} waiting: a part did not answer`;
   return v ? `Needs you, ${v} waiting` : "Needs you, nothing waiting";
 }
 
@@ -185,7 +187,7 @@ export function Topbar({ routeId, parts, shell, top, narrow: shellNarrow, side =
       ${(top?.links || []).map((l) => html`<a key=${l.href} class="s-top-link" href=${l.href}>${l.label}</a>`)}
       ${top?.note ? html`<span class="s-top-note u-num">${top.note}</span>` : null}
       <button type="button" class=${`s-queue-btn${queueOpen ? " is-open" : ""}`} onClick=${onQueue}
-        aria-label=${`Queue: ${needsLabel(needs)}`} aria-expanded=${queueOpen ? "true" : "false"} aria-controls="s-queue">
+        aria-label=${`Queue: ${needsLabel(needs, shell?.counts?.partial === true)}`} aria-expanded=${queueOpen ? "true" : "false"} aria-controls="s-queue">
         <${Icon} name="inbox" />
         <span aria-hidden="true">Queue</span>
         <${Kbd}>Q<//>
