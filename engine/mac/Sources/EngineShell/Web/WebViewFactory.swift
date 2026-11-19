@@ -32,6 +32,9 @@ public enum WebViewFactory {
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.preferences.isFraudulentWebsiteWarningEnabled = false
         config.preferences.isElementFullscreenEnabled = true
+        // Tab reaches links and buttons too, in the home pages and the apps' frames, whatever this Mac's
+        // Keyboard navigation setting (off, WebKit moves Tab between text fields and lists only).
+        config.preferences.tabFocusesLinks = true
         // The second fence, in both roles: every load not on the home's origin or an App Studio port is blocked.
         let rules = RuleList.compiled(for: home)
         if let rules { config.userContentController.add(rules) }

@@ -376,6 +376,7 @@ private func factoryChecks() -> [Check] {
                 try expect(c.preferences.javaScriptCanOpenWindowsAutomatically == false, "windows")
                 try expect(c.preferences.isFraudulentWebsiteWarningEnabled == false, "fraud lookups")
                 try expect(c.preferences.isElementFullscreenEnabled, "full screen")
+                try expect(c.preferences.tabFocusesLinks, "Tab reaches links and buttons")
                 try expect(c.websiteDataStore.isPersistent, "data store")
                 try expect(c.applicationNameForUserAgent == "CompanyEngine/\(BuildConstants.version)", "user agent")
                 try expect(!web.allowsLinkPreview, "link preview")
