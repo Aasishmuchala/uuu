@@ -15,7 +15,8 @@
 // changed may be the money. While it offers `approve` it waits for the owner as a staged plan does.
 import { createHash } from "node:crypto";
 import { HomeError } from "./errors.mjs";
-import { inboxSeatMay, macOnly, seatNoteRefused } from "./seats.mjs";
+import { stripInvisible } from "./owner-text.mjs";
+import { inboxSeatMay, macOnly, seatNoteError } from "./seats.mjs";
 
 // A version from the texts an item shows: the first 16 hex characters of a SHA-256 over them.
 export function versionOf(...parts) {
@@ -202,9 +203,12 @@ export function createActor(sources) {
     if (!spec) throw new HomeError(400, "That action is not offered for this item.", "Refresh the inbox and pick one of the buttons shown.", "bad_action");
     // A seat (a second PC, PLAN-DESKTOP T7) may take only the actions lib/seats.mjs lists for its source: nothing priced.
     if (!inboxSeatMay(ctx.seat || null, owners.get(id)?.id, item, action)) throw macOnly();
-    const text = typeof note === "string" ? note.trim() : "";
-    // Nor may its note be one of the owner's priced orders, whichever action carries it (REVIEW-DESKTOP M1).
-    if (seatNoteRefused(ctx.seat || null, text)) throw macOnly();
+    // A seat's note has its invisible characters taken out, as the note route does (REVIEW-DESKTOP T1); the Mac's is as before.
+    const text = typeof note === "string" ? (ctx.seat ? stripInvisible(note) : note).trim() : "";
+    // Nor may its note be one of the owner's priced orders, whichever action carries it, nor anything but plain
+    // English letters; a question card's JSON answers are checked string by string (REVIEW-DESKTOP M1, S1, T1).
+    const refused = seatNoteError(ctx.seat || null, text);
+    if (refused) throw refused;
     if (spec.needsNote && !text) {
       throw new HomeError(400, "This needs a short note.", "Write what should change, then send it.", "needs_note");
     }

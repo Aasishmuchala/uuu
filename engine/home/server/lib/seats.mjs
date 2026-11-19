@@ -167,44 +167,99 @@ export function inboxSeatMay(seat, source, item, action) {
 
 // The owner markers the engine itself writes for a priced step: "ANOTHER ROUND" (a new round is made and paid for)
 // and "SHOTLIST ACCEPTED:" (a film's cost approved). The Chief of staff acts on the owner's comment, and its reader is
-// a model, not a parser: a comment that looks the same is the same order. So a seat may not write either anywhere in a
-// note (REVIEW-DESKTOP M1, S1). The whole note is folded to a skeleton (foldMarkers) and searched; this also refuses
-// plain words such as "not another round yet" from a seat, the safe side ("when unsure: MAC_ONLY").
-// Letters of other scripts and small capitals that look like Latin ones, mapped to the Latin letter.
-const LOOKALIKES = new Map(Object.entries({
-  // Cyrillic
-  "А": "A", "В": "B", "Е": "E", "Ѕ": "S", "І": "I", "Ј": "J", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C",
-  "Т": "T", "У": "Y", "Х": "X", "Ԛ": "Q", "Ԝ": "W", "Ӏ": "I", "Ү": "Y",
-  "а": "a", "в": "b", "е": "e", "ѕ": "s", "і": "i", "ј": "j", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c",
-  "т": "t", "у": "y", "х": "x", "ԛ": "q", "ԝ": "w", "ӏ": "l", "ү": "y", "ԁ": "d", "һ": "h", "п": "n", "г": "r",
-  // Greek
-  "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P", "Τ": "T",
-  "Υ": "Y", "Χ": "X", "Ϲ": "C", "Ϻ": "M",
-  "α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "ϲ": "c",
-  "η": "n", "ω": "w",
-  // Small capitals and the like (Latin Extended, Phonetic Extensions)
-  "ᴀ": "A", "ʙ": "B", "ᴄ": "C", "ᴅ": "D", "ᴇ": "E", "ꜰ": "F", "ɢ": "G", "ʜ": "H", "ɪ": "I", "ᴊ": "J", "ᴋ": "K", "ʟ": "L",
-  "ᴍ": "M", "ɴ": "N", "ᴏ": "O", "ᴘ": "P", "ǫ": "Q", "ʀ": "R", "ꜱ": "S", "ᴛ": "T", "ᴜ": "U", "ᴠ": "V", "ᴡ": "W", "ʏ": "Y",
-  "ᴢ": "Z", "ı": "I", "ȷ": "J",
-}));
-// After the letters are capitals: digits and letters a reader takes for one another, made one.
-const SKELETON = Object.freeze({ "0": "O", "1": "I", "L": "I", "3": "E", "4": "A", "5": "S", "7": "T", "8": "B" });
+// a model, not a parser: a comment that looks the same is the same order. So a seat's note may not hold either
+// (REVIEW-DESKTOP M1, S1, T1), and is held to plain English letters. The only person at a seat is the owner, who
+// writes English, so the check is strict rather than a table of lookalikes that is never finished:
+//   1. what a reader would decode is decoded first: HTML entities and \u or \x escapes (three times, for one inside
+//      another); a note that is JSON is also checked string by string after JSON.parse (seatNoteError);
+//   2. every invisible character goes: default-ignorable code points (joiners, the bidi controls that turn text
+//      round, tag characters), the Hangul fillers, controls;
+//   3. after NFKD with the combining marks dropped, a letter or digit outside Basic Latin, or a letter in a box, a
+//      circle or a flag (the enclosed and letter-like blocks), is refused with its own sentence (LETTERS_ONLY);
+//   4. what is left is folded to a skeleton (only letters and digits, in capitals; @ and () read as A and O, | 1 I
+//      and L as one, 0 as O, 3 as E, and a few more) and searched for either order, forwards and backwards.
+// This refuses plain words such as "not another round yet" from a seat too: the safe side ("when unsure: MAC_ONLY").
+export const LETTERS_ONLY = "From the PC, notes can use plain English letters only. Write it on the Mac to use other letters.";
+export const lettersOnly = () => new HomeError(403, LETTERS_ONLY, MAC_ONLY_HINT, "mac_only");
 
-// A text's skeleton: NFKD, combining marks dropped, lookalikes mapped to Latin, capitals, everything that is not a
-// letter or a digit dropped, then the lookalike digits and letters made one.
-export function foldMarkers(text) {
-  const plain = String(text ?? "").normalize("NFKD").replace(/\p{M}/gu, "");
-  let mapped = "";
-  for (const ch of plain) mapped += LOOKALIKES.get(ch) ?? ch;
-  return mapped.toUpperCase().normalize("NFKD").replace(/[^\p{L}\p{N}]/gu, "").replace(/[0134578L]/g, (c) => SKELETON[c]);
+const NAMED = Object.freeze({
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", ensp: " ", emsp: " ", thinsp: " ", hyphen: "-", dash: "-",
+  ndash: "-", mdash: "-", lpar: "(", rpar: ")", commat: "@", verbar: "|", vert: "|", period: ".", colon: ":", lowbar: "_",
+  sol: "/", bsol: "\\", num: "#", excl: "!", quest: "?", comma: ",", semi: ";", plus: "+", equals: "=", ast: "*",
+  lsquo: "'", rsquo: "'", ldquo: "\"", rdquo: "\"", shy: "", zwj: "", zwnj: "", lrm: "", rlm: "",
+});
+// An entity or escape that is not a plain character becomes one no plain note holds, so the letters rule refuses it.
+const NOT_PLAIN_CHAR = "\u{1F1E6}";
+const fromCode = (n) => (Number.isInteger(n) && n >= 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : NOT_PLAIN_CHAR);
+function decodeOnce(text) {
+  return text
+    .replace(/&#[xX]([0-9a-fA-F]{1,6});?/g, (_, h) => fromCode(parseInt(h, 16)))
+    .replace(/&#([0-9]{1,7});?/g, (_, d) => fromCode(parseInt(d, 10)))
+    .replace(/&([A-Za-z][A-Za-z0-9]{1,31});/g, (_, n) => (Object.hasOwn(NAMED, n.toLowerCase()) ? NAMED[n.toLowerCase()] : NOT_PLAIN_CHAR))
+    .replace(/\\u\{([0-9a-fA-F]{1,6})\}/g, (_, h) => fromCode(parseInt(h, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => fromCode(parseInt(h, 16)))
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => fromCode(parseInt(h, 16)));
 }
-const PRICED_MARKERS = Object.freeze(["ANOTHER ROUND", "SHOTLIST ACCEPTED"].map(foldMarkers));
+const BREAKS = /\r\n?|[\n\t\u0085\u2028\u2029]/g;
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cc}\p{Cf}\u115F\u1160\u3164\uFFA0]/gu;
 
-// seat: { n, role } or null (the Mac). -> true when this note must be refused for this seat. The Mac is never refused.
+// The note as a reader would take it: decoded, invisible characters gone, NFKD with the combining marks dropped.
+function plainOf(text) {
+  let s = String(text ?? "");
+  for (let i = 0; i < 3; i++) {
+    const next = decodeOnce(s);
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(BREAKS, " ").replace(INVISIBLE, "").normalize("NFKD").replace(/\p{M}/gu, "").replace(INVISIBLE, "");
+}
+
+// A letter or digit outside Basic Latin, or a letter in a box, a circle or a flag (letter-like symbols, enclosed
+// alphanumerics, dingbat circled digits, enclosed CJK and squared letters, the enclosed supplement with the flags).
+const NOT_PLAIN = /[^\P{L}A-Za-z]|[^\P{N}0-9]|[\u2100-\u214F\u2460-\u24FF\u2776-\u2793\u3200-\u33FF\u{1F100}-\u{1F1FF}]/u;
+export function plainLettersOnly(text) {
+  return !NOT_PLAIN.test(plainOf(text));
+}
+
+// After the letters are capitals: characters a reader takes for one another, made one.
+const SKELETON = Object.freeze({ "0": "O", "1": "L", "I": "L", "|": "L", "3": "E", "4": "A", "@": "A", "5": "S", "$": "S", "7": "T", "8": "B" });
+
+// A text's skeleton: plainOf, capitals, "()" read as O, the lookalikes made one, then only letters and digits kept.
+export function foldMarkers(text) {
+  return plainOf(text).toUpperCase().replace(/\(\s*\)/g, "O").replace(/[0134@57$8I|]/g, (c) => SKELETON[c])
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+const backwards = (s) => [...s].reverse().join("");
+// Each order forwards, and backwards (written in reverse behind a right-to-left override, which plainOf drops).
+const PRICED_MARKERS = Object.freeze(["ANOTHER ROUND", "SHOTLIST ACCEPTED"].map(foldMarkers).flatMap((m) => [m, backwards(m)]));
+const holdsMarker = (text) => { const folded = foldMarkers(text); return PRICED_MARKERS.some((m) => folded.includes(m)); };
+
+// Every string inside a value parsed from JSON, keys included, at most 2,000 of them, 20 levels deep.
+function stringsIn(value, out = [], depth = 0) {
+  if (out.length > 2000 || depth > 20) return out;
+  if (typeof value === "string") out.push(value);
+  else if (Array.isArray(value)) for (const v of value) stringsIn(v, out, depth + 1);
+  else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) { out.push(k); stringsIn(v, out, depth + 1); }
+  return out;
+}
+
+// seat: { n, role } or null (the Mac). -> the HomeError to refuse this note with, or null. The Mac is never refused.
+// The note itself is checked, and, when it is JSON (a question card's answers), every string in it after JSON.parse.
+export function seatNoteError(seat, note) {
+  if (!seat || typeof note !== "string") return null;
+  const texts = [note];
+  const raw = note.trim();
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    try { texts.push(...stringsIn(JSON.parse(raw))); } catch { /* not JSON: the note alone */ }
+  }
+  if (texts.some((t) => !plainLettersOnly(t))) return lettersOnly();
+  if (texts.some(holdsMarker)) return macOnly();
+  return null;
+}
+
+// -> true when this note must be refused for this seat, for either reason.
 export function seatNoteRefused(seat, note) {
-  if (!seat || typeof note !== "string") return false;
-  const folded = foldMarkers(note);
-  return PRICED_MARKERS.some((m) => folded.includes(m));
+  return seatNoteError(seat, note) !== null;
 }
 
 // May this seat make this change? `route` is "<METHOD> <pattern>" of the matched route, or null when none matched.

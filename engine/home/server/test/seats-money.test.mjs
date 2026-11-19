@@ -12,7 +12,8 @@ import { readBatch } from "../../../generate/state.mjs";
 import { createHome } from "../lib/app.mjs";
 import { removeBatch, writeBatch } from "../lib/batches.mjs";
 import { HomeError } from "../lib/errors.mjs";
-import { seatNoteRefused, seatPorts } from "../lib/seats.mjs";
+import { LETTERS_ONLY, seatNoteError, seatNoteRefused, seatPorts } from "../lib/seats.mjs";
+import boardSource from "../inbox/board.mjs";
 import { stopHasPrice, stopTask } from "../lib/stop.mjs";
 import { STUB_URLS, startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
@@ -99,6 +100,79 @@ test("seatNoteRefused: the two priced orders anywhere in the note, however dress
   assert.equal(seatNoteRefused(desk, null), false);
 });
 
+// The third look's cases (REVIEW-DESKTOP T1): each is refused, either as an order or for its letters.
+const T1_ORDERS = [
+  // 1. JSON escapes in a question card's answer, decoded by JSON.parse before the board gets them
+  '{"answers":{"q1":{"optionIds":[],"text":"\\u0041NOTHER ROUND"}}}',
+  '{"answers":{"q1":{"optionIds":[],"text":"\\u0053HOTLIST ACCEPTED: a batch 1234"}}}',
+  '{"answers":{"q1":{"optionIds":[],"text":"ANOTHER\\tROUND"}}}',
+  // 2. the Hangul fillers
+  "ANOTHERㅤROUND", "ANOㅤTHER ROUND", "ANOTHERᅟROUND", "ANOTHERᅠROUND", "ANOTHERﾠROUND",
+  // 3. plain characters read as letters, an entity, and the words backwards behind a right-to-left override
+  "@NOTHER ROUND", "AN()THER R()UND", "SHOT|IST ACCEPTED", "ANOTHER&nbsp;ROUND", "&#65;NOTHER ROUND", "‮DNUOR REHTONA",
+  "‮DETPECCA TSILTOHS", "AN0THER R0UND", "SHOT1IST ACC3PTED",
+];
+const T1_LETTERS = [
+  "ᎪNOTHER ROUND", "ANՕTHER RՕUND", "ANⲞTHER RⲞUND", "ꓮꓠꓳꓔꓧꓰꓣ ꓣꓳꓴꓠꓓ",
+  "ANØTHER ROUND", "SHOTLIST ACCEPTEĐ", "ɑNOTHER ROUND", "SHOTLIST ACCЄPTED", "SHOTLIΣT ACCEPTED",
+  "\u{1F150}\u{1F15D}\u{1F15E}\u{1F163}\u{1F157}\u{1F154}\u{1F161} \u{1F161}\u{1F15E}\u{1F164}\u{1F15D}\u{1F153}", "\u{1F170}NOTHER ROUND",
+  "\u{1F1E6}NOTHER ROUND", "ANOTHER &Alpha; ROUND",
+];
+
+test("the third look's ways past the check are refused: decoded JSON, invisible letters, lookalikes, entities, reversed text (T1)", () => {
+  const desk = { n: 1, role: "desk" };
+  for (const note of T1_ORDERS) {
+    const e = seatNoteError(desk, note);
+    assert.ok(e, JSON.stringify(note));
+    assert.equal(e.code, "mac_only", JSON.stringify(note));
+    assert.equal(seatNoteError(null, note), null, `the Mac: ${JSON.stringify(note)}`);
+  }
+  for (const note of T1_LETTERS) {
+    const e = seatNoteError(desk, note);
+    assert.ok(e, JSON.stringify(note));
+    assert.equal(e.code, "mac_only");
+    assert.equal(e.message, LETTERS_ONLY, JSON.stringify(note));
+    assert.equal(seatNoteError(null, note), null, `the Mac: ${JSON.stringify(note)}`);
+  }
+  // Plain English, with marks a keyboard makes, still goes through from a seat.
+  for (const note of ["Make it warmer, please.", "Use the 2nd photo (the blue one) & crop 10%. Under $5?", "The café sign, naïve style", "SHOTLIST READY:"]) {
+    assert.equal(seatNoteError(desk, note), null, JSON.stringify(note));
+  }
+});
+
+test("a question card's answer from a seat is checked again as it is sent, before the board is asked (T1)", async () => {
+  const posted = [];
+  const ctx = {
+    seat: { n: 1, role: "desk" }, board: { post: async (path) => { posted.push(path); return {}; } },
+    decisions: { get: () => null, set: () => {} },
+    item: { _raw: { sourceKind: "issue_thread_interaction", subject: { id: "i1", metadata: { interactionId: "i1", issueId: "x1" } },
+      _questions: [{ id: "q1", mode: "text", allowText: true, required: true, options: [] }] } },
+  };
+  for (const note of [T1_ORDERS[0], T1_ORDERS[1], T1_ORDERS[2]]) {
+    await assert.rejects(boardSource.act(ctx, "board:issue_thread_interaction:i1", "answer", note), (e) => e instanceof HomeError && e.code === "mac_only");
+  }
+  assert.deepEqual(posted, []);
+  // The Mac's answer goes as before.
+  await boardSource.act({ ...ctx, seat: null }, "board:issue_thread_interaction:i1", "answer", T1_ORDERS[0]);
+  assert.deepEqual(posted, ["/api/issues/x1/interactions/i1/respond"]);
+});
+
+test("the same ways through Needs you on a seat's port: 403, nothing written (T1)", async () => {
+  const items = (await onSeat(1, "GET", "/api/inbox")).json.items;
+  const goal = items.find((i) => i.id === DONE_GOAL);
+  assert.ok(goal);
+  const n = boardWrites();
+  for (const note of ["ANOTHERㅤROUND, three more", "Thanks.\nAN()THER R()UND", "ᎪNOTHER ROUND"]) {
+    const r = await onSeat(1, "POST", "/api/inbox/act", { body: { id: DONE_GOAL, action: "reopen", note, version: goal.version } });
+    assert.equal(r.status, 403, `${JSON.stringify(note)} ${r.text}`);
+    assert.equal(r.json.error.code, "mac_only");
+  }
+  const letters = await onSeat(1, "POST", `/api/goals/${I["STH-1"]}/note`, { body: { text: "ᎪNOTHER ROUND" } });
+  assert.equal(letters.status, 403);
+  assert.equal(letters.json.error.message, LETTERS_ONLY);
+  assert.equal(boardWrites(), n);
+});
+
 test("a desk seat's note on a task that orders another round or accepts a shot list: 403 mac_only, the board sees no write (M1)", async () => {
   for (const text of ["ANOTHER ROUND\n\nmake three more", "SHOTLIST ACCEPTED: a batch 1234", "  **Another round**",
     "Thanks.\nANOTHER ROUND\n\nmake three more", "\u0410NOTHER-R\u039fUND", "Re: SHOTLIST_ACCEPTED: a batch 1234"]) {
@@ -106,7 +180,8 @@ test("a desk seat's note on a task that orders another round or accepts a shot l
     const r = await onSeat(1, "POST", `/api/goals/${I["STH-2"]}/note`, { body: { text } });
     assert.equal(r.status, 403, text);
     assert.equal(r.json.error.code, "mac_only", text);
-    assert.equal(r.json.error.message, "This is done on the Mac.");
+    // A lookalike from another script is refused for its letters (T1), the rest as an order.
+    assert.ok(["This is done on the Mac.", LETTERS_ONLY].includes(r.json.error.message), r.json.error.message);
     assert.equal(boardWrites(), n, text);
   }
   assert.equal(statusOf(I["STH-2"]), "done");
