@@ -15,7 +15,40 @@
   overflow: hidden;
 }
 
+/* The trail stays on one line; in a narrower frame its first steps go (the side bar and the brand
+   lead back to them), and the last one shortens with an ellipsis rather than wrap. */
+.topStart nav,
+.topStart ol {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.topStart ol {
+  flex-wrap: nowrap;
+}
+
+.topStart li {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.topStart li:last-child {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.topStart li:last-child > :last-child {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topStart li:not(:last-child) {
+  flex: none;
+}
+
 .brand {
+  flex: none;
   padding-inline: var(--spacing-2) var(--spacing-4);
   font-size: var(--text-body-size);
   font-weight: var(--font-weight-semibold);
@@ -31,10 +64,75 @@
 }
 
 .topEnd {
+  flex: none;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--spacing-2);
   min-width: 0;
+}
+
+.wide {
+  display: contents;
+}
+
+.mid,
+.narrow {
+  display: none;
+}
+
+/* Below a frame of about 1200 points Go to and Shortcuts drop their keys (in the tooltips still) and
+   the trail its first step; below 760 they are icons, named and with tooltips, the trail is the
+   current screen alone and the allowance chip its wallet (money.module.css). */
+@media (max-width: 1200px) {
+  .top {
+    gap: var(--spacing-3);
+  }
+
+  .wide {
+    display: none;
+  }
+
+  .mid {
+    display: contents;
+  }
+
+  .topStart li:not(:nth-last-child(-n + 2)) {
+    display: none;
+  }
+
+  /* The step now first on the line loses its separator. */
+  .topStart li:nth-last-child(2) > :first-child:not(:only-child) {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .top {
+    gap: var(--spacing-2);
+  }
+
+  .mid {
+    display: none;
+  }
+
+  .narrow {
+    display: contents;
+  }
+
+  .topStart li:not(:last-child) {
+    display: none;
+  }
+
+  .topStart li:last-child > :first-child:not(:only-child) {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .brand {
+    display: none;
+  }
 }
 
 .navCount {

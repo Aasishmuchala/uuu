@@ -1,7 +1,7 @@
 import { Film } from 'lucide-react';
 import { useState } from 'react';
 
-import { type FilmFormat, mediaUrl, outputUrl, type Project, type Transition, TRANSITIONS } from '../../shared/project.ts';
+import { downloadUrl, type FilmFormat, filmFileName, mediaUrl, outputUrl, type Project, type Transition, TRANSITIONS } from '../../shared/project.ts';
 import { Banner, Heading, SegmentedControl, SegmentedControlItem, StatusDot, Text } from '../kit.ts';
 import { clock } from '../lib/timeline.ts';
 import { MUSIC_SENTENCE, NO_CHARGE_ON_MAC } from '../lib/words.ts';
@@ -73,7 +73,7 @@ export function FilmScreen({ project }: { project: Project }) {
                   <span className="num">{clock(film?.stitch.durationSeconds ?? total)}</span>, silent
                 </Text>
                 <FullSize compact media={{ src: mediaUrl(finished), kind: 'clip', alt: title, caption: title }} />
-                <DownloadLink href={`${mediaUrl(finished)}?download`} name="the film" />
+                <DownloadLink href={downloadUrl(mediaUrl(finished), filmFileName(project.name, project.storyboard?.title))} name="the film" />
               </div>
             )}
           </div>

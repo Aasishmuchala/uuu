@@ -22,3 +22,24 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+.words {
+  display: flex;
+  min-width: 0;
+}
+
+/* A narrow frame: the dot alone (the words are the tooltip and the chip's name). */
+@media (max-width: 760px) {
+  .chip {
+    flex: none;
+    padding: 0 var(--spacing-2);
+  }
+
+  .chip[data-state='reading'] {
+    width: 28px;
+  }
+
+  .words {
+    display: none;
+  }
+}

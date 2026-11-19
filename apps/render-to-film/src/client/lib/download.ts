@@ -1,47 +1,39 @@
 import { useCallback, useState } from 'react';
 
+import { withDownload } from '../../attachment.ts';
+
 /**
- * Save a file under `filename`. `onProgress` gets 0–1 while the bytes arrive
- * (when the size is known). Throws a readable error when the file can't be
- * fetched: a popup opened after an await would be blocked, so there is no
- * open-in-a-tab fallback.
+ * Save a file under `filename`. The page asks first (a HEAD, so nothing is
+ * read twice) and then follows a link to the file's own address with
+ * `?download=<filename>`, which the server answers as an attachment
+ * (src/attachment.ts). Never a `blob:` copy: the Mac app's web view loads a
+ * `blob:` link in the frame, which the home page refuses, instead of saving
+ * it. Throws a readable error when the file can't be had; a popup opened
+ * after an await would be blocked, so there is no open-in-a-tab fallback.
+ * The bytes arrive in the browser's own download, so `onProgress` only hears
+ * the start and the end.
  */
 export async function download(url: string, filename: string, onProgress?: (fraction: number) => void) {
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetch(url, { method: 'HEAD' });
   } catch {
     throw new Error('The download was cut off. Check your connection and try again.');
   }
   if (res.status === 404) throw new Error('This file is no longer in your library.');
   if (!res.ok) throw new Error(`The download failed (${res.status}). Try again.`);
-  try {
-    const total = Number(res.headers.get('content-length')) || 0;
-    let blob: Blob;
-    if (res.body && total && onProgress) {
-      const reader = res.body.getReader();
-      const chunks: BlobPart[] = [];
-      let received = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.byteLength;
-        onProgress(Math.min(1, received / total));
-      }
-      blob = new Blob(chunks, { type: res.headers.get('content-type') ?? '' });
-    } else {
-      blob = await res.blob();
-    }
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = href;
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(href), 1000);
-  } catch {
-    throw new Error('The download was cut off. Check your connection and try again.');
-  }
+  saveLink(withDownload(url, filename), filename);
+  onProgress?.(1);
+}
+
+/** Follow a same-origin attachment link from this page; it stays in this window. */
+export function saveLink(href: string, filename: string) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /**

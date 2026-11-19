@@ -3,11 +3,12 @@ import type Koa from 'koa';
 
 import { randomUUID } from 'node:crypto';
 
+import { attachmentHeader, withDownload } from './attachment.ts';
 import { compositeUrl, ensureComposite, maskPrefix } from './composite.ts';
 import { editOwns, readEdit } from './edits.ts';
 import { ownerFromRequest, readLibrary } from './library.ts';
 import { gateway, RunwayTaskError } from './gateway.ts';
-import { openForServing, putObject } from './storage.ts';
+import { deleteObject, openForServing, putObject } from './storage.ts';
 import { thumbUrl, viewUrl } from './thumbs.ts';
 
 /**
@@ -99,7 +100,8 @@ export function mountStaticFallback(app: Koa, mount: (app: Koa) => void) {
  * `GET /files/<key>`: a file this app keeps on this Mac (a render, a result, a
  * thumbnail), by the same key `presignGet` gives out. Only a regular file
  * inside the objects folder (never a link), only the types `FILE_TYPES` names,
- * with a single byte range for seeking in a clip.
+ * with a single byte range for seeking in a clip. `?download=<name>` asks the
+ * browser to save it under that name (src/attachment.ts).
  */
 export function filesRoute(): Koa.Middleware {
   return async (ctx, next) => {
@@ -146,6 +148,8 @@ export function filesRoute(): Koa.Middleware {
     ctx.set('Accept-Ranges', 'bytes');
     ctx.set('Cache-Control', 'private, max-age=3600');
     ctx.set('X-Content-Type-Options', 'nosniff');
+    const disposition = attachmentHeader(ctx.query, key);
+    if (disposition) ctx.set('Content-Disposition', disposition);
     if (ctx.method === 'HEAD') {
       await file.handle.close();
       ctx.status = ctx.status === 206 ? 206 : 200;
@@ -158,6 +162,11 @@ export function filesRoute(): Koa.Middleware {
     }
     ctx.body = file.handle.createReadStream({ start, end, autoClose: true });
   };
+}
+
+/** Where a visitor's last graded film is kept. */
+function gradedPrefix(owner: string): string {
+  return `graded/${owner}/`;
 }
 
 export function mountApi(app: Koa) {
@@ -225,6 +234,30 @@ export function mountApi(app: Koa) {
     ctx.body = { key };
   });
 
+  // Keep a graded film the page recorded (src/client/lib/gradedFilm.ts), so it
+  // is saved from a real `/files/` address with `?download`, never a `blob:`
+  // copy. One per visitor: the next one replaces it.
+  api.post('/graded', async (ctx) => {
+    const type = ctx.request.type.trim().toLowerCase();
+    const ext = type === 'video/mp4' ? 'mp4' : type === 'video/webm' ? 'webm' : null;
+    if (!ext) ctx.throw(415, 'The graded film must be sent as MP4 or WebM.');
+    const owner = (await ownerFromRequest(ctx.req))!;
+    const limit = 1024 * 1024 * 1024;
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of ctx.req) {
+      const buf: Buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      total += buf.length;
+      if (total > limit) ctx.throw(413, 'The graded film is over 1 GB. Download it without the grade.');
+      chunks.push(buf);
+    }
+    if (total === 0) ctx.throw(400, 'The graded film was empty.');
+    const key = `${gradedPrefix(owner)}film.${ext}`;
+    await deleteObject(`${gradedPrefix(owner)}film.${ext === 'mp4' ? 'webm' : 'mp4'}`).catch(() => {});
+    await putObject(key, Buffer.concat(chunks), { contentType: type });
+    ctx.body = { url: `/files/${key}` };
+  });
+
   // A stable URL for one of the visitor's stills or clips. The media is kept
   // on this Mac; this checks it is in the library and 302s to its `/files/`
   // address (seeking included).
@@ -236,15 +269,20 @@ export function mountApi(app: Koa) {
     // and reading the files again.
     // `?thumb` asks for a small copy of a still, for grids and pickers;
     // `?view` for a full-resolution copy kept in the app's storage, for the
-    // big screen. Without either, the original file (downloads).
+    // big screen. Without either, the original file (downloads); with
+    // `?download=<name>` the `/files/` address it points to saves the file
+    // under that name, so the page never makes a `blob:` copy.
     const thumb = kind === 'still' && ctx.query['thumb'] !== undefined;
     const view = kind === 'still' && !thumb && ctx.query['view'] !== undefined;
     const variant = thumb ? ':thumb' : view ? ':view' : '';
     const cacheKey = owner ? `${owner}:${kind}:${id}${variant}` : null;
     const hit = cacheKey ? signedUrls.get(cacheKey) : undefined;
+    const asked = ctx.query['download'];
+    const saveAs = (url: string) =>
+      asked === undefined || thumb || view ? url : withDownload(url, Array.isArray(asked) ? (asked[0] ?? '') : asked);
     if (hit && hit.exp > Date.now()) {
       ctx.set('Cache-Control', 'private, max-age=300');
-      ctx.redirect(hit.url);
+      ctx.redirect(saveAs(hit.url));
       return;
     }
     const lib = owner && kind !== 'edit' ? await readLibrary(owner) : null;
@@ -288,7 +326,7 @@ export function mountApi(app: Koa) {
     }
     if (cacheKey && remember) rememberSignedUrl(cacheKey, url);
     ctx.set('Cache-Control', 'private, max-age=300');
-    ctx.redirect(url);
+    ctx.redirect(saveAs(url));
   });
 
   // The gate wraps `await next()` rather than terminating, so middleware you

@@ -69,3 +69,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A narrow frame: the wallet alone; the words stay for a screen reader and in the tooltip. */
+@media (max-width: 760px) {
+  .chip {
+    flex: none;
+    padding-inline: var(--spacing-2);
+  }
+
+  .chipText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}

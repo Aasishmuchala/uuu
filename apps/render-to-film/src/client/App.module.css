@@ -10,10 +10,16 @@
 }
 
 .crumbs {
+  flex: 0 1 auto;
   display: flex;
   align-items: baseline;
   gap: var(--spacing-2);
   min-width: 0;
+  white-space: nowrap;
+}
+
+.group {
+  display: contents;
 }
 
 .slash {
@@ -21,13 +27,20 @@
 }
 
 .topEnd {
+  flex: none;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--spacing-2);
   min-width: 0;
 }
 
+.shortcuts {
+  display: contents;
+}
+
 .jump {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -39,7 +52,39 @@
   color: var(--color-text-secondary);
   font: inherit;
   font-size: var(--font-size-sm);
+  white-space: nowrap;
   cursor: pointer;
+}
+
+/* A narrower frame (App Studio's page in a small window, a phone): the bar keeps one line. Jump to
+   keeps its magnifier and keys, Shortcuts goes (the ? key and the palette still open them), and the
+   allowance chip keeps its dot (SpendingChip.module.css). At the narrowest the screen's group and
+   the keys go too. */
+@media (max-width: 760px) {
+  .top {
+    gap: var(--spacing-2);
+    padding: 0 var(--spacing-3) 0 var(--spacing-4);
+  }
+
+  .jumpWords,
+  .shortcuts {
+    display: none;
+  }
+
+  .jump {
+    padding: 0 var(--spacing-1) 0 var(--spacing-2);
+  }
+}
+
+@media (max-width: 340px) {
+  .group,
+  .jumpKeys {
+    display: none;
+  }
+
+  .jump {
+    padding: 0 var(--spacing-2);
+  }
 }
 
 .jump:hover {

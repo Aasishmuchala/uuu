@@ -35,7 +35,7 @@ export function useMoney(): Money {
 export function AllowanceChip() {
   const { allowance } = useMoney();
   return (
-    <span className={styles.chip} data-open={allowance?.open || undefined} role="status" aria-live="polite">
+    <span className={styles.chip} data-open={allowance?.open || undefined} role="status" aria-live="polite" title={allowance?.words}>
       <Wallet size={14} aria-hidden />
       <span className={styles.chipText}>{allowance ? allowance.words : 'Reading the allowance…'}</span>
     </span>
