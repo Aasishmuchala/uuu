@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { soundLabel, startMuted } from '../lib/sound.ts';
+import { blessPlaying, soundLabel, startMuted } from '../lib/sound.ts';
 import styles from './LightboxSound.module.css';
 
 const ICON_OFF =
@@ -13,14 +13,17 @@ const ICON_ON =
  * by itself, and a "Turn sound on" button sits over it (the clip's own
  * controls have a speaker too). The kit's Lightbox takes no children, so the
  * button is put into its dialog by hand: there, the Lightbox's own keys
- * (arrows, Escape) still reach it from the button. A clip moved away from is
- * paused.
+ * (arrows, Escape) still reach it from the button. A press or a key in the
+ * lightbox lets the clip have its sound from then on (`blessPlaying`). A clip
+ * moved away from is paused.
  */
 export function LightboxSound({ isOpen }: { isOpen: boolean }) {
   useEffect(() => {
     if (!isOpen) return;
     let video: HTMLVideoElement | null = null;
     let button: HTMLButtonElement | null = null;
+    let host: HTMLDialogElement | null = null;
+    const bless = () => blessPlaying(video);
     const show = () => {
       if (!button || !video) return;
       button.innerHTML = `${video.muted ? ICON_OFF : ICON_ON}<span>${soundLabel(video.muted)}</span>`;
@@ -28,6 +31,9 @@ export function LightboxSound({ isOpen }: { isOpen: boolean }) {
     };
     const drop = () => {
       video?.removeEventListener('volumechange', show);
+      host?.removeEventListener('pointerdown', bless, true);
+      host?.removeEventListener('keydown', bless, true);
+      host = null;
       button?.remove();
       button = null;
     };
@@ -52,6 +58,9 @@ export function LightboxSound({ isOpen }: { isOpen: boolean }) {
       video.addEventListener('volumechange', show);
       show();
       dialog.appendChild(button);
+      host = dialog;
+      host.addEventListener('pointerdown', bless, true);
+      host.addEventListener('keydown', bless, true);
     };
     look();
     const watch = new MutationObserver(look);
