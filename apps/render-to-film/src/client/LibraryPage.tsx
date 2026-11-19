@@ -38,6 +38,7 @@ import { StarButton, useStar } from './parts/StarButton.tsx';
 import { useKeys } from './parts/useKeys.ts';
 import { useTagSaver } from './parts/useTags.ts';
 import { trpc } from './trpc.ts';
+import { LightboxSound } from './ui/LightboxSound.tsx';
 import styles from './LibraryPage.module.css';
 
 const PAGE = 48;
@@ -315,6 +316,7 @@ export function LibraryPage({ active, onGo, onAnimate, focusId, onFocused }: Lib
         }}
         hasZoom
       />
+      <LightboxSound isOpen={view !== null && media.length > 0} />
       <CompareBoard
         isOpen={board && compare.ok}
         onClose={() => setBoard(false)}

@@ -2,6 +2,7 @@ import { Maximize2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button, IconButton, Lightbox } from '../kit.ts';
+import { LightboxSound } from './LightboxSound.tsx';
 
 export type FullSizeProps = {
   /** The app's own address of the still or clip (`libraryUrl`). */
@@ -20,7 +21,8 @@ export type FullSizeProps = {
  * "Open full size": the still or clip at full size inside the app, not in a
  * new window. The home screen frames the app without popups (a popup is a
  * way off this Mac), so the view opens over the page; Escape or Close backs
- * out. Download stays its own button.
+ * out. Download stays its own button. A clip starts muted and plays by
+ * itself, with a button to turn the sound on (LightboxSound).
  */
 export function FullSize({ src, kind, title, alt, iconOnly = false, isOpen, onOpenChange }: FullSizeProps) {
   const [own, setOwn] = useState(false);
@@ -44,6 +46,7 @@ export function FullSize({ src, kind, title, alt, iconOnly = false, isOpen, onOp
         hasZoom={kind === 'still'}
         hasAutoPlay={kind === 'clip'}
       />
+      {kind === 'clip' && <LightboxSound isOpen={open} />}
     </>
   );
 }

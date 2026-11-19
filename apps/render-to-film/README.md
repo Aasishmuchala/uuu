@@ -51,6 +51,8 @@ renders, prompts, stills and clips the owner works with) off this Mac from the b
 ways without a click. See docs/adr/0016, "What the fence does not protect".
 
 What the app does about it: it opens no window of its own. "Open full size" is a view inside the
-app (`src/client/ui/FullSize.tsx`), a download stays a download, and
+app (`src/client/ui/FullSize.tsx`), a download stays a download (a link to the file's own
+`/files/` address with `?download=<name>`, answered as an attachment, never a `blob:` copy, which the
+Mac app's web view would load in the frame; `src/attachment.ts`), and
 `src/client/no-popups.test.ts` fails if any client file calls `window.open` or names `_blank`.
 Before adding or updating a package, read what it is and who publishes it.

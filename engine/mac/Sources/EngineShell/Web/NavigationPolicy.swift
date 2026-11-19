@@ -9,8 +9,14 @@ public struct NavRequest {
     public var mainFrame: Bool
     public var click: Bool
     public var newWindow: Bool
-    public init(url: URL, mainFrame: Bool, click: Bool, newWindow: Bool) {
+    /// The port of the one App Studio app the asker is held to; nil only when the home page itself asked
+    /// (`NavMapping.request` decides which, M16b).
+    public var fromAppPort: Int?
+    /// The asker is not the home page and its own app is not known: no app's port matches it.
+    public static let unknownApp = 0
+    public init(url: URL, mainFrame: Bool, click: Bool, newWindow: Bool, fromAppPort: Int? = nil) {
         self.url = url; self.mainFrame = mainFrame; self.click = click; self.newWindow = newWindow
+        self.fromAppPort = fromAppPort
     }
 }
 
@@ -47,15 +53,23 @@ struct Address {
 
     /// `http`, the host exactly `127.0.0.1`, the port written exactly as `port`, no user name or password.
     func isLoopbackHTTP(port wanted: ClosedRange<Int>) -> Bool {
-        guard scheme == "http", host == "127.0.0.1", !hasCredentials,
+        isOrigin(scheme: "http", host: HomeOrigin.loopbackHost, port: wanted)
+    }
+
+    /// The scheme and host exactly as given, the port written exactly as one in `wanted`, no user name or
+    /// password.
+    func isOrigin(scheme wantedScheme: String, host wantedHost: String, port wanted: ClosedRange<Int>) -> Bool {
+        guard scheme == wantedScheme, host == wantedHost, !hasCredentials,
               let port, wanted.contains(port), portText == String(port) else { return false }
         return true
     }
 }
 
 public struct NavigationPolicy {
-    public let homePort: Int
-    public init(homePort: Int) { self.homePort = homePort }
+    public let home: HomeOrigin
+    public var homePort: Int { home.port }
+    public init(home: HomeOrigin) { self.home = home }
+    public init(homePort: Int) { self.init(home: .local(port: homePort)) }
 
     /// App Studio's apps, each on its own port (ADR 0016). Only ever inside a frame.
     public static let appPorts = 3171...3189
@@ -73,14 +87,18 @@ public struct NavigationPolicy {
             return request.click && Self.mayOpenOutside(url) ? .external(url) : .drop
         }
         // A frame inside the home page: an app's own address, or the empty page a frame starts with.
-        if Self.isAppFrame(url) || Self.isAboutBlank(url) { return .allow }
-        return .drop
+        if Self.isAboutBlank(url) { return .allow }
+        guard Self.isAppFrame(url) else { return .drop }
+        // An app's frame may move itself only within its own port, never to another app's page under its
+        // name (M15, L5). The home page may open any app; any other asker is held to one app (M16b).
+        if let from = request.fromAppPort, URLComponents(string: url.absoluteString)?.port != from { return .drop }
+        return .allow
     }
 
     /// The home screen's own origin: the only top page the app shows (S1).
     public func isHome(_ url: URL) -> Bool {
         guard Self.isClean(url.absoluteString), let a = Address(url) else { return false }
-        return a.isLoopbackHTTP(port: homePort...homePort)
+        return a.isOrigin(scheme: home.scheme, host: home.host, port: home.port...home.port)
     }
 
     /// An App Studio app's address, http://127.0.0.1:3171 to 3189 (S2).
@@ -107,11 +125,11 @@ public struct NavigationPolicy {
 
     /// The origin of a frame as WebKit reports it (WKSecurityOrigin's protocol, host and port).
     public func isHomeOrigin(scheme: String, host: String, port: Int) -> Bool {
-        scheme == "http" && host == "127.0.0.1" && port == homePort
+        scheme == home.scheme && host == home.host && port == home.port
     }
 
     public static func isAppOrigin(scheme: String, host: String, port: Int) -> Bool {
-        scheme == "http" && host == "127.0.0.1" && appPorts.contains(port)
+        scheme == "http" && host == HomeOrigin.loopbackHost && appPorts.contains(port)
     }
 
     /// A `download` link to a `blob:` or `data:` address the page or app made itself. Allowed only from

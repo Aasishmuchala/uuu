@@ -5,6 +5,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$HERE"
 
+# VERSION is read as build.sh reads it: one line of two to four numbers, nothing else (M15's L3).
+VERSION="$(cat VERSION)"
+if ! [[ "$VERSION" =~ ^[0-9]{1,9}(\.[0-9]{1,9}){1,3}$ ]]; then
+  echo "check.sh: VERSION must be one line like 1.0.4 (two to four numbers of at most nine digits, nothing else)." >&2
+  exit 1
+fi
+
 CONSTANTS="Sources/EngineShell/Build/BuildConstants.swift"
 if [ ! -f "$CONSTANTS" ]; then
   mkdir -p "$(dirname "$CONSTANTS")"
@@ -14,7 +21,7 @@ public enum BuildConstants {
     public static let homePort = 3200
     public static let engineRoot = ""
     public static let flavor = "dev"
-    public static let version = "$(head -n 1 VERSION | tr -d '[:space:]')"
+    public static let version = "$VERSION"
     public static let build = "0"
 }
 SWIFT
@@ -23,18 +30,8 @@ fi
 swift build -c release
 .build/release/engine-mac-checks
 
-FORBIDDEN='evaluateJavaScript|callAsyncJavaScript|WKUserScript|ScriptMessageHandler|setURLSchemeHandler|loadHTMLString|loadFileURL|NSAllowsArbitraryLoads|ProcessInfo\.processInfo\.environment|getenv|paperclip|secrets|auth\.json|agent\.env|\.env\b'
-if grep -rnE "$FORBIDDEN" Sources/EngineShell Sources/CompanyEngine --include='*.swift' \
-     --exclude=BuildConstants.swift; then
-  echo "check.sh: a source file uses something the rules forbid (see above)." >&2
-  exit 1
-fi
+# The source rules: forbidden words and the one loopback literal (source-rules.sh).
+"$HERE/source-rules.sh"
 
-# Any change under Sources needs a new VERSION (the commit that last changed VERSION is the mark).
-MARK="$(git log -1 --format=%H -- engine/mac/VERSION 2>/dev/null || true)"
-if [ -n "$MARK" ]; then
-  if ! git diff --quiet "$MARK" -- Sources || [ -n "$(git status --porcelain -- Sources | grep -v BuildConstants.swift || true)" ]; then
-    echo "check.sh: Sources changed since VERSION last changed. Bump VERSION." >&2
-    exit 1
-  fi
-fi
+# Any change under Sources needs a new VERSION.
+"$HERE/version-rule.sh"

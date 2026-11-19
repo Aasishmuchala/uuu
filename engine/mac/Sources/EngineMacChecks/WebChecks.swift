@@ -171,6 +171,10 @@ private func hostileChecks() -> [Check] {
 }
 
 // The delegate's mapping, as the delegate uses it (no window needed).
+private func same<T: Equatable>(_ got: T, _ want: T, _ what: String) throws {
+    if got != want { throw WebCheckFailure(description: "\(what): got \(got), want \(want)") }
+}
+
 private func mappingChecks() -> [Check] {
     var c: [Check] = []
     let home = URL(string: "http://127.0.0.1:3200/#/tasks")!
@@ -203,12 +207,68 @@ private func mappingChecks() -> [Check] {
         try expect(policy.decide(r) == .drop, "not dropped")
     })
     c.append(Check(name: "nav: map app frame redirected to another app stays a frame") {
-        let r = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false)
+        // A redirect of a load the home page asked for keeps the home page as its asker (ADR 0020, M16b).
+        let r = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false,
+                                   sourceScheme: "http", sourceHost: "127.0.0.1", sourcePort: 3200, home: policy.home)
         try expect(policy.decide(r) == .allow, "not allowed")
     })
     c.append(Check(name: "nav: map app frame link to outside drops") {
         let r = NavMapping.request(url: evil, navigationType: .linkActivated, targetIsMainFrame: false)
         try expect(policy.decide(r) == .drop, "not dropped")
+    })
+    // M15's L5: an app's frame may move itself within its own port, never to another app's.
+    func fromApp(_ to: String, _ sourcePort: Int?, main: Bool = false) -> NavRequest {
+        NavMapping.request(url: URL(string: to)!, navigationType: .linkActivated, targetIsMainFrame: main,
+                           sourceScheme: "http", sourceHost: "127.0.0.1",
+                           sourcePort: sourcePort ?? 3200, home: policy.home)
+    }
+    c.append(Check(name: "nav: an app's frame moving itself to another app's port drops") {
+        try expect(policy.decide(fromApp("http://127.0.0.1:3172/", 3171)) == .drop, "app 3171 went to 3172")
+        try expect(policy.decide(fromApp("http://127.0.0.1:3189/x", 3171)) == .drop, "app 3171 went to 3189")
+        var r = NavRequest(url: URL(string: "http://127.0.0.1:3172/")!, mainFrame: false, click: false, newWindow: false,
+                           fromAppPort: 3171)
+        try expect(policy.decide(r) == .drop, "a script move from 3171 to 3172")
+        r.fromAppPort = 3172
+        try expect(policy.decide(r) == .allow, "3172 within itself")
+    })
+    c.append(Check(name: "nav: an app's frame within its own port, and the home page opening any app, are allowed") {
+        try expect(policy.decide(fromApp("http://127.0.0.1:3171/next", 3171)) == .allow, "app within itself")
+        try expect(policy.decide(fromApp("http://127.0.0.1:3172/", nil)) == .allow, "home opens app 3172")
+        try expect(policy.decide(fromApp("about:blank", 3171)) == .allow, "app to about:blank")
+    })
+    c.append(Check(name: "nav: the mapping names the asking app only for an app's origin") {
+        try same(fromApp("http://127.0.0.1:3172/", 3171).fromAppPort, 3171, "app source")
+        try same(fromApp("http://127.0.0.1:3172/", nil).fromAppPort, nil, "home source")
+        let other = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other,
+                                       targetIsMainFrame: false, sourceScheme: "https", sourceHost: "127.0.0.1", sourcePort: 3171)
+        try same(other.fromAppPort, NavRequest.unknownApp, "https is not an app origin, nor the home page")
+        let none = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false)
+        try same(none.fromAppPort, NavRequest.unknownApp, "no source is not the home page")
+    })
+    // M16b (L5 fails open): an asker that is not exactly the home page is held to the frame's own app.
+    func opaque(_ to: String, frame: String?, scheme: String = "", host: String = "", port: Int = 0) -> NavRequest {
+        NavMapping.request(url: URL(string: to)!, navigationType: .other, targetIsMainFrame: false,
+                           sourceScheme: scheme, sourceHost: host, sourcePort: port,
+                           targetFrameURL: frame.map { URL(string: $0)! }, home: policy.home)
+    }
+    c.append(Check(name: "nav: a sandboxed app frame (opaque origin) moving to another app's port drops") {
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: "http://127.0.0.1:3171/")) == .drop, "3171 went to 3172")
+        try expect(policy.decide(opaque("http://127.0.0.1:3189/x", frame: "http://127.0.0.1:3171/a")) == .drop, "3171 went to 3189")
+    })
+    c.append(Check(name: "nav: a sandboxed app frame within its own port is allowed, and to about:blank") {
+        try expect(policy.decide(opaque("http://127.0.0.1:3171/next", frame: "http://127.0.0.1:3171/")) == .allow, "not allowed")
+        try expect(policy.decide(opaque("about:blank", frame: "http://127.0.0.1:3171/")) == .allow, "about:blank")
+    })
+    c.append(Check(name: "nav: an asker that is not the home page, in a frame not on an app, opens no app") {
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: nil)) == .drop, "no frame address")
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: "about:blank")) == .drop, "about:blank frame")
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: nil, scheme: "http", host: "127.0.0.1", port: 3201)) == .drop,
+                   "a near-home port")
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: nil, scheme: "http", host: "localhost", port: 3200)) == .drop,
+                   "localhost is not the home origin")
+        let noHome = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false,
+                                        sourceScheme: "http", sourceHost: "127.0.0.1", sourcePort: 3200)
+        try expect(policy.decide(noHome) == .drop, "the home origin not given to the mapping")
     })
     c.append(Check(name: "nav: map new window is a click in a new top window") {
         let r = NavMapping.newWindowRequest(url: evil)
@@ -316,6 +376,7 @@ private func factoryChecks() -> [Check] {
                 try expect(c.preferences.javaScriptCanOpenWindowsAutomatically == false, "windows")
                 try expect(c.preferences.isFraudulentWebsiteWarningEnabled == false, "fraud lookups")
                 try expect(c.preferences.isElementFullscreenEnabled, "full screen")
+                try expect(c.preferences.tabFocusesLinks, "Tab reaches links and buttons")
                 try expect(c.websiteDataStore.isPersistent, "data store")
                 try expect(c.applicationNameForUserAgent == "CompanyEngine/\(BuildConstants.version)", "user agent")
                 try expect(!web.allowsLinkPreview, "link preview")
@@ -362,6 +423,158 @@ private func factoryChecks() -> [Check] {
     ]
 }
 
+// PLAN-MAC-2 N4a: the home screen's address as one value, and the `home:` forms the same as `homePort:`.
+private func originChecks() -> [Check] {
+    let home = HomeOrigin.local(port: 3200)
+    func url(_ rest: String, _ want: String?) -> Check {
+        Check(name: "origin: url(\(rest.debugDescription)) -> \(want ?? "nil")") {
+            let got = home.url(rest)?.absoluteString
+            try expect(got == want, "got \(got ?? "nil")")
+        }
+    }
+    return [
+        Check(name: "origin: local(port:) is http on the loopback address") {
+            try expect(home.scheme == "http" && home.host == HomeOrigin.loopbackHost && home.port == 3200, "\(home)")
+            try expect(HomeOrigin.loopbackHost == "127.0.0.1", "loopback")
+            try expect(home == .local(port: 3200) && home != .local(port: 3201), "equality")
+        },
+        url("/", "http://127.0.0.1:3200/"),
+        url("/#/needs-you", "http://127.0.0.1:3200/#/needs-you"),
+        url("/api/shell", "http://127.0.0.1:3200/api/shell"),
+        url("/healthz", "http://127.0.0.1:3200/healthz"),
+        url("needs-you", nil),
+        url("//evil.example/", nil),
+        url("/\n", nil),
+        url("", nil),
+        url("/ x", nil),
+        url("/\\evil.example/", nil),
+        url("/@evil.example/", "http://127.0.0.1:3200/@evil.example/"),
+        Check(name: "origin: the policy's home: and homePort: forms are the same policy") {
+            let a = NavigationPolicy(home: home), b = NavigationPolicy(homePort: 3200)
+            try expect(a.home == b.home && a.homePort == 3200 && b.homePort == 3200, "home")
+            for text in ["http://127.0.0.1:3200/", "http://127.0.0.1:3201/", "http://localhost:3200/",
+                         "https://127.0.0.1:3200/", "http://127.0.0.1:03200/"] {
+                let u = URL(string: text)!
+                try expect(a.isHome(u) == b.isHome(u), text)
+            }
+            try expect(a.isHome(home.url("/#/needs-you")!), "its own address is home")
+        },
+        Check(name: "origin: the poll's home: and homePort: forms are the same") {
+            let a = Poller(home: home, timeout: 1), b = Poller(homePort: 3200, timeout: 1)
+            try expect(a.home == b.home && a.homePort == 3200 && b.homePort == 3200, "home")
+        },
+        Check(name: "origin: the factory's home: form gives the policy that origin") {
+            try MainActor.assumeIsolated {
+                let web = WebViewFactory.make(home: .local(port: 3333), role: .probe)
+                guard let g = WebViewFactory.webGuard(of: web) else { throw WebCheckFailure(description: "no guard") }
+                try expect(g.policy.home == .local(port: 3333) && g.policy.homePort == 3333, "policy")
+            }
+        },
+    ]
+}
+
 func webChecks() -> [Check] {
     tableChecks() + hostileChecks() + mappingChecks() + responseChecks() + localDownloadChecks() + messageChecks() + factoryChecks()
+        + originChecks() + ruleListChecks()
+}
+
+// PLAN-MAC D16, PLAN-MAC-2 M8: the rule list. Its shape (Rules.json) names no host; the list WebKit compiles is made from
+// HomeOrigin and lets through the home's origin and 127.0.0.1:3171 to 3189 only, after one rule that blocks everything.
+private func ruleListChecks() -> [Check] {
+    let home = HomeOrigin.local(port: 3200)
+    func rules(_ text: String?) throws -> [[String: Any]] {
+        guard let data = text?.data(using: .utf8),
+              let list = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw WebCheckFailure(description: "not a JSON list of rules")
+        }
+        return list
+    }
+    func filters(_ list: [[String: Any]]) -> [String] {
+        list.compactMap { ($0["trigger"] as? [String: Any])?["url-filter"] as? String }
+    }
+    func action(_ rule: [String: Any]) -> String? { (rule["action"] as? [String: Any])?["type"] as? String }
+    // "^http://127\.0\.0\.1:3200/" or "^blob:http://127\.0\.0\.1:3200/" -> (host, port), or nil for any other shape.
+    func origin(_ filter: String) -> (host: String, port: Int)? {
+        let lead = filter.hasPrefix("^blob:http://") ? "^blob:http://" : "^http://"
+        guard filter.hasPrefix(lead), filter.hasSuffix("/") else { return nil }
+        let body = filter.dropFirst(lead.count).dropLast()
+        guard let colon = body.lastIndex(of: ":"), let port = Int(body[body.index(after: colon)...]),
+              String(port) == String(body[body.index(after: colon)...]) else { return nil }
+        let host = body[..<colon].replacingOccurrences(of: "\\.", with: ".")
+        guard !host.contains("\\") else { return nil }
+        return (host, port)
+    }
+    let sourceFolder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    let file = sourceFolder.appendingPathComponent("EngineShell/Web/Rules.json")
+    return [
+        Check(name: "rules: Rules.json is the template RuleList compiles from") {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            try expect(text == RuleList.template, "Web/Rules.json and RuleList.template differ")
+        },
+        Check(name: "rules: the template names no host and no port") {
+            let text = RuleList.template
+            for bad in ["127", "localhost", "http", "::1", "3200", "317", "318"] {
+                try expect(!text.contains(bad), "the template holds \(bad)")
+            }
+            let list = try rules(text)
+            try expect(list.count == 3, "\(list.count) rules")
+            try expect(filters(list) == [".*", "^\(RuleList.originToken)/", "^blob:\(RuleList.originToken)/"],
+                       "filters \(filters(list))")
+        },
+        Check(name: "rules: first rule blocks every load, every other one only lets an origin through") {
+            let list = try rules(RuleList.json(home: home))
+            try expect(filters(list).first == ".*" && action(list[0]) == "block", "first rule")
+            for rule in list.dropFirst() {
+                try expect(action(rule) == "ignore-previous-rules", "action \(action(rule) ?? "none")")
+                let trigger = rule["trigger"] as? [String: Any] ?? [:]
+                try expect(Set(trigger.keys) == ["url-filter"], "a trigger with more than an address: \(trigger.keys)")
+            }
+        },
+        Check(name: "rules: the compiled rules name no host but HomeOrigin.loopbackHost") {
+            let list = try rules(RuleList.json(home: home))
+            for f in filters(list).dropFirst() {
+                guard let o = origin(f) else { throw WebCheckFailure(description: "a filter of another shape: \(f)") }
+                try expect(o.host == HomeOrigin.loopbackHost, "host \(o.host)")
+            }
+        },
+        Check(name: "rules: let through exactly the home's port and 3171 to 3189, and their own blob: addresses") {
+            let list = try rules(RuleList.json(home: home))
+            let rest = filters(list).dropFirst()
+            let ports = rest.compactMap { origin($0)?.port }
+            try expect(ports.count == list.count - 1, "a filter without a port")
+            let want = [3200] + Array(3171...3189)
+            try expect(rest.filter { $0.hasPrefix("^http://") }.compactMap { origin($0)?.port } == want, "http ports \(ports)")
+            try expect(rest.filter { $0.hasPrefix("^blob:http://") }.compactMap { origin($0)?.port } == want, "blob ports \(ports)")
+            try expect(rest.allSatisfy { $0.hasPrefix("^http://") || $0.hasPrefix("^blob:http://") }, "another scheme")
+        },
+        Check(name: "rules: a dot in the host matches only a dot, and the port ends at a slash") {
+            let f = filters(try rules(RuleList.json(home: home)))[1]
+            try expect(f == "^http://127\\.0\\.0\\.1:3200/", "filter \(f)")
+        },
+        Check(name: "rules: another home port moves only the home's rule") {
+            let ports = filters(try rules(RuleList.json(home: .local(port: 39200)))).dropFirst().compactMap { origin($0)?.port }
+            let want = [39200] + Array(3171...3189)
+            try expect(ports == want + want, "ports \(ports)")
+        },
+        Check(name: "rules: an extra frame port is added once, on the loopback host") {
+            let list = try rules(RuleList.json(home: .local(port: 3400), framePorts: [3401, 3401, 3400]))
+            let found = filters(list).dropFirst().compactMap { origin($0) }
+            try expect(found.map(\.port) == [3400, 3401, 3400, 3401], "ports \(found.map(\.port))")
+            try expect(found.allSatisfy { $0.host == HomeOrigin.loopbackHost }, "hosts")
+        },
+        Check(name: "rules: WebKit compiles the list") {
+            try MainActor.assumeIsolated {
+                try expect(RuleList.compiled(for: home) != nil, "no list")
+            }
+        },
+        Check(name: "rules: the factory puts the list on the web view in both roles") {
+            try MainActor.assumeIsolated {
+                for role in [WebViewRole.app, .probe] {
+                    let web = WebViewFactory.make(home: home, role: role)
+                    try expect(WebViewFactory.ruleList(of: web) != nil, "no list in role \(role)")
+                    try expect(WebViewFactory.ruleList(of: web) === RuleList.compiled(for: home), "another list")
+                }
+            }
+        },
+    ]
 }

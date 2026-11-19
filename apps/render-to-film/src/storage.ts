@@ -31,6 +31,7 @@ export const FILE_TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
   webp: 'image/webp',
   mp4: 'video/mp4',
+  webm: 'video/webm',
   json: 'application/json',
 };
 

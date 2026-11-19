@@ -11,7 +11,7 @@ let package = Package(
         .executable(name: "engine-mac-checks", targets: ["EngineMacChecks"]),
     ],
     targets: [
-        .target(name: "EngineShell"),
+        .target(name: "EngineShell", exclude: ["Web/Rules.json"]),
         .executableTarget(name: "CompanyEngine", dependencies: ["EngineShell"]),
         .executableTarget(name: "WebKitProbe", dependencies: ["EngineShell"]),
         .executableTarget(name: "EngineMacChecks", dependencies: ["EngineShell"]),

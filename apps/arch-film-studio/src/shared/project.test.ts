@@ -3,9 +3,12 @@ import { describe, test } from 'node:test';
 
 import {
   defaultSettings,
+  downloadUrl,
   ENHANCEMENT_KEYS,
+  filmFileName,
   IMAGE_EXTENSIONS,
   imageKeys,
+  masterFileName,
   mediaUrl,
   outputUrl,
   UPLOAD_KEY_PATTERN,
@@ -33,6 +36,27 @@ describe('mediaUrl and outputUrl', () => {
     assert.equal(outputUrl({ storedKey: 'media/x.png' }), '/files/media/x.png');
     assert.equal(outputUrl({ storedKey: 'media/x.png' }, true), '/files/media/x.png?download');
     assert.equal(outputUrl({}), undefined);
+  });
+
+  test('outputUrl and downloadUrl carry a readable name to save under', () => {
+    assert.equal(outputUrl({ storedKey: 'media/x.png' }, 'Harbour house IMG-002 master'), '/files/media/x.png?download=Harbour%20house%20IMG-002%20master');
+    assert.equal(downloadUrl('/files/f.mp4', 'East garden film'), '/files/f.mp4?download=East%20garden%20film');
+    assert.equal(downloadUrl('/files/f.mp4', '  '), '/files/f.mp4?download');
+    assert.equal(downloadUrl('/files/f.mp4', false), '/files/f.mp4');
+  });
+});
+
+describe('download names', () => {
+  test('the film is named for the project, and its title when that says more', () => {
+    assert.equal(filmFileName('East garden film', 'Stone and water'), 'East garden film - Stone and water');
+    assert.equal(filmFileName('Harbour house', ''), 'Harbour house film');
+    assert.equal(filmFileName('Harbour house', 'harbour house'), 'Harbour house film');
+    assert.equal(filmFileName('', undefined), 'Film');
+  });
+
+  test('a master is named for the project, the code and the picture', () => {
+    assert.equal(masterFileName('Harbour house', { code: 'IMG-002', name: 'north-elevation.jpg' }), 'Harbour house IMG-002 north-elevation master');
+    assert.equal(masterFileName('Harbour house', { code: 'IMG-002', name: '' }), 'Harbour house IMG-002 master');
   });
 });
 

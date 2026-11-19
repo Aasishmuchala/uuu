@@ -328,6 +328,18 @@ _Avoid_: Digest, report, summary email
 A small picture or animation made of frames, with its data file and a GIF.
 _Avoid_: Icon, asset, animation file
 
+**Mac app**:
+Company Engine, the home screen in its own Mac window, with a count on the Dock, a menu bar item, a notice that says only how many items need the owner, keep-awake, and Start and Stop for the engine. It runs as the owner, outside the fence, and shows one address, `http://127.0.0.1:3200`. Quitting it never stops the engine. Every screen in it is the same web page as in a browser.
+_Avoid_: Desktop app, native app, client, wrapper
+
+**Off page**:
+The Mac app's own page, not a web page, shown while the home screen does not answer: "The engine is off.", a "Start the engine" button and the last lines the engine printed. The home screen comes back in its place by itself.
+_Avoid_: Error page, offline screen, splash
+
+**WebKit probe**:
+`webkit-probe`, a small test program beside the Mac app that opens a page of a test home screen in the app's own web view, off screen, and gives back a picture and a report. It may run script in a page; for that reason it is never put into the app.
+_Avoid_: Safari driver, headless Safari, test browser
+
 ## Roles
 
 **Owner**:

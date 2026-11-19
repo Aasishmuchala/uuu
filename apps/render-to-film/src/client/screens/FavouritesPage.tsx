@@ -7,6 +7,7 @@ import { libraryItems, type LibraryItem } from '../lib/libraryFilter.ts';
 import { formatDate } from '../lib/titles.ts';
 import { libraryUrl, stillThumbUrl, stillViewUrl } from '../lib/urls.ts';
 import { ErrorNote } from '../parts/ErrorNote.tsx';
+import { LightboxSound } from '../ui/LightboxSound.tsx';
 import { StarButton } from '../parts/StarButton.tsx';
 import { trpc } from '../trpc.ts';
 import styles from './FavouritesPage.module.css';
@@ -143,6 +144,7 @@ export function FavouritesPage({ onGoToLibrary }: { onGoToLibrary: () => void })
         onIndexChange={(i: number) => setView(i)}
         hasZoom
       />
+      <LightboxSound isOpen={view !== null && media.length > 0} />
     </div>
   );
 }

@@ -8,7 +8,7 @@ import IOKit.pwr_mgt
 // free port the system picks (always above 3300 and never one of the engine's).
 
 func engineChecks() -> [Check] {
-    envChecks() + rootChecks() + runChecks() + pollChecks() + awakeChecks() + badgeChecks() + notifyChecks()
+    envChecks() + rootChecks() + runChecks() + switchChecks() + pollChecks() + awakeChecks() + badgeChecks() + notifyChecks()
 }
 
 // ---- helpers (private to this file) -----------------------------------------------------------------------
@@ -114,6 +114,33 @@ private func physical(_ path: String) -> String {
 
 private func alive(_ pid: pid_t) -> Bool { kill(pid, 0) == 0 || errno == EPERM }
 
+// This user's home folder and name from the user database, and the temp folder from the system, read here
+// without EngineShell so the checks do not take its word for it.
+private func systemUser() throws -> (home: String, name: String, tmp: String) {
+    guard let pw = getpwuid(getuid()) else { throw Failure(description: "getpwuid") }
+    let home = String(cString: pw.pointee.pw_dir), name = String(cString: pw.pointee.pw_name)
+    var buf = [CChar](repeating: 0, count: Int(PATH_MAX))
+    guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buf, buf.count) > 0 else { throw Failure(description: "confstr") }
+    return (home, name, String(cString: buf))
+}
+
+// Runs this program again with `args` and exactly `env`; its standard output.
+private func runSelf(_ args: [String], env: [String: String]) throws -> String {
+    let p = Process()
+    guard let me = Bundle.main.executableURL else { throw Failure(description: "no executable") }
+    p.executableURL = me
+    p.arguments = args
+    p.environment = env
+    let out = Pipe()
+    p.standardOutput = out
+    p.standardError = FileHandle.nullDevice
+    try p.run()
+    let data = out.fileHandleForReading.readDataToEndOfFile()
+    p.waitUntilExit()
+    try same(p.terminationStatus, 0, "the helper's exit")
+    return String(decoding: data, as: UTF8.self)
+}
+
 // ---- env: --------------------------------------------------------------------------------------------------
 
 private func envChecks() -> [Check] {
@@ -123,9 +150,30 @@ private func envChecks() -> [Check] {
             try same(Set(built.keys), Set(seven), "keys")
         },
         Check(name: "env: PATH, LANG and SHELL are fixed") {
-            try same(built["PATH"], "/usr/bin:/bin:/usr/sbin:/sbin", "PATH")
+            try same(built["PATH"], "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin", "PATH")
             try same(built["LANG"], "en_US.UTF-8", "LANG")
             try same(built["SHELL"], "/bin/bash", "SHELL")
+        },
+        Check(name: "env: path has six folders in the pinned order") {
+            let folders = EngineEnvironment.path.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+            try same(folders, ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"], "folders")
+            try same(Set(folders).count, 6, "distinct")
+            try same(built["PATH"], EngineEnvironment.path, "built PATH")
+        },
+        Check(name: "env: no folder under the home folder") {
+            let homes = ["/Users/", "/var/root", NSHomeDirectory(), physical(NSHomeDirectory())]
+            for folder in EngineEnvironment.path.split(separator: ":").map(String.init) {
+                try expect(folder.hasPrefix("/") && !folder.contains("~") && !folder.contains("$"), "\(folder) is not a fixed path")
+                for h in homes { try expect(!folder.hasPrefix(h), "\(folder) is under \(h)") }
+                try expect(!folder.contains("/.local/") && !folder.contains("nvm"), "\(folder)")
+            }
+            let mine = EngineEnvironment.forThisUser()
+            try same(mine["PATH"], EngineEnvironment.path, "the app's PATH")
+        },
+        Check(name: "env: still seven keys") {
+            try same(built.count, 7, "count")
+            try same(EngineEnvironment.forThisUser().count, 7, "the app's count")
+            try same(Set(EngineEnvironment.forThisUser().keys), Set(seven), "the app's keys")
         },
         Check(name: "env: HOME, USER, LOGNAME and TMPDIR come from the arguments") {
             try same(built["HOME"], "/Users/someone", "HOME")
@@ -138,11 +186,32 @@ private func envChecks() -> [Check] {
             setenv("HOME", "/tmp/not-home", 1)
             defer { if let was = was { setenv("HOME", was, 1) } else { unsetenv("HOME") } }
             let mine = EngineEnvironment.forThisUser()
-            try same(mine["HOME"], NSHomeDirectory(), "HOME")
+            let sys = try systemUser()
+            try same(mine["HOME"], sys.home, "HOME")
             try expect(mine["HOME"] != "/tmp/not-home", "HOME was read from the environment")
-            try same(mine["USER"], NSUserName(), "USER")
-            try same(mine["TMPDIR"], NSTemporaryDirectory(), "TMPDIR")
+            try same(mine["USER"], sys.name, "USER")
+            try same(mine["LOGNAME"], sys.name, "LOGNAME")
+            try same(mine["TMPDIR"], sys.tmp, "TMPDIR")
             try same(Set(mine.keys), Set(seven), "keys")
+        },
+        Check(name: "env: an app started with CFFIXED_USER_HOME, HOME, TMPDIR, USER and LOGNAME set still gives the system's") {
+            // M15's M2: NSHomeDirectory() honours CFFIXED_USER_HOME and NSTemporaryDirectory() honours TMPDIR,
+            // and both are read when the process starts, so this runs in a process of its own.
+            let out = try runSelf(["--print-env"], env: [
+                "CFFIXED_USER_HOME": "/tmp/cf-fixed-home", "HOME": "/tmp/not-home", "TMPDIR": "/tmp/not-tmp/",
+                "USER": "someone-else", "LOGNAME": "someone-else", "PATH": "/tmp/not-path",
+            ])
+            var got: [String: String] = [:]
+            for line in out.split(separator: "\n") {
+                if let eq = line.firstIndex(of: "=") { got[String(line[..<eq])] = String(line[line.index(after: eq)...]) }
+            }
+            let sys = try systemUser()
+            try same(Set(got.keys), Set(seven), "keys")
+            try same(got["HOME"], sys.home, "HOME")
+            try same(got["USER"], sys.name, "USER")
+            try same(got["LOGNAME"], sys.name, "LOGNAME")
+            try same(got["TMPDIR"], sys.tmp, "TMPDIR")
+            try same(got["PATH"], EngineEnvironment.path, "PATH")
         },
         Check(name: "env: none of the forbidden keys is ever built, whatever the caller holds") {
             for (k, v) in poison { setenv(k, v, 1) }
@@ -251,12 +320,110 @@ private func rootChecks() -> [Check] {
             try FileManager.default.createDirectory(at: s.script, withIntermediateDirectories: false)
             try same(fault(EngineRoot.check(path: s.root.path, allowTemp: true)), .notSafe, "folder")
         },
+        // M15's L2: what lies between the root and the script, and the folder the root sits in.
+        Check(name: "root: engine/bin as a link to another folder is refused") {
+            let s = try StandIn()
+            let elsewhere = s.dir.appendingPathComponent("elsewhere")
+            try FileManager.default.moveItem(at: s.root.appendingPathComponent("engine/bin"), to: elsewhere)
+            try FileManager.default.createSymbolicLink(at: s.root.appendingPathComponent("engine/bin"), withDestinationURL: elsewhere)
+            try same(fault(EngineRoot.check(path: s.root.path, allowTemp: true)), .notSafe, "engine/bin link")
+        },
+        Check(name: "root: engine as a link to another checkout's engine is refused") {
+            let s = try StandIn(), other = try StandIn()
+            try FileManager.default.removeItem(at: s.root.appendingPathComponent("engine"))
+            try FileManager.default.createSymbolicLink(at: s.root.appendingPathComponent("engine"),
+                                                       withDestinationURL: other.root.appendingPathComponent("engine"))
+            try same(fault(EngineRoot.check(path: s.root.path, allowTemp: true)), .notSafe, "engine link")
+        },
+        Check(name: "root: engine or engine/bin that others can write is refused") {
+            for (folder, mode) in [("engine", 0o777), ("engine", 0o775), ("engine/bin", 0o777), ("engine/bin", 0o775)] {
+                let s = try StandIn()
+                try FileManager.default.setAttributes([.posixPermissions: mode],
+                                                      ofItemAtPath: s.root.appendingPathComponent(folder).path)
+                try same(fault(EngineRoot.check(path: s.root.path, allowTemp: true)), .notSafe, "\(folder) \(String(mode, radix: 8))")
+            }
+        },
+        Check(name: "root: a root whose parent others can write is refused") {
+            let s = try StandIn()
+            try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: s.dir.path)
+            try same(fault(EngineRoot.check(path: s.root.path, allowTemp: true)), .notSafe, "parent 0777")
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: s.dir.path)
+            guard case .success = EngineRoot.check(path: s.root.path, allowTemp: true) else {
+                throw Failure(description: "parent 0755 refused")
+            }
+        },
+        Check(name: "root: the temp folder is the system's, not TMPDIR's") {
+            // A development build runs status only on a root under a temp folder; an app started with TMPDIR
+            // naming a real checkout must not make that checkout count as one.
+            let code = physical(URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().path)
+            let out = try runSelf(["--under-temp", code], env: ["TMPDIR": code + "/"])
+            try same(out, "no\n", "under temp")
+            let tmp = try runSelf(["--under-temp", physical(try systemUser().tmp) + "/x"], env: ["TMPDIR": code + "/"])
+            try same(tmp, "yes\n", "the system's own temp folder")
+        },
     ]
 }
 
 // ---- run: --------------------------------------------------------------------------------------------------
 
 private let quick = EngineLimits(start: 1, stop: 1, status: 1.5)
+
+// ---- switch: (PLAN-MAC-2 N4b) ------------------------------------------------------------------------------
+
+private func switchChecks() -> [Check] {
+    [
+        Check(name: "switch: a development build is unavailable with W8, and start gives (-1, [W8])") {
+            let s = try StandIn()
+            for compiled in ["", s.root.path] {
+                let sw: EngineSwitch = LocalEngineSwitch(flavor: "dev", compiledRoot: compiled)
+                try same(sw.state, .unavailable(EngineWords.devBuild), "state (\(compiled.isEmpty ? "empty" : "stand-in"))")
+                let r = blocking { await sw.run(.start) }
+                try same(r.exit, -1, "exit")
+                try same(r.lines, [EngineWords.devBuild], "lines")
+                let q = blocking { await sw.run(.status) }
+                try same(q.lines, [EngineWords.devBuild], "status lines")
+            }
+            let t = LocalEngineSwitch(flavor: "dev", compiledRoot: s.root.path, allowTemp: true)
+            try same(t.state, .unavailable(EngineWords.devBuild), "allowTemp changes nothing for dev")
+            try expect(!FileManager.default.fileExists(atPath: s.record.path), "the stand-in ran")
+        },
+        Check(name: "switch: a release build with a bad compiled root is unavailable with W10") {
+            let s = try StandIn(), bad = try StandIn(mode: 0o777)
+            for (compiled, temp) in [("", true), ("/nope", true), (bad.root.path, true), (s.root.path, false)] {
+                let sw = LocalEngineSwitch(flavor: "release", compiledRoot: compiled, allowTemp: temp)
+                try same(sw.state, .unavailable(EngineWords.badRoot), "state \(compiled) allowTemp \(temp)")
+                for verb in EngineVerb.allCases {
+                    let r = blocking { await sw.run(verb) }
+                    try same(r.exit, -1, "\(verb) exit")
+                    try same(r.lines, [EngineWords.badRoot], "\(verb) lines")
+                }
+            }
+            try same(LocalEngineSwitch(flavor: "release", compiledRoot: s.root.path).state,
+                     .unavailable(EngineWords.badRoot), "the public init never allows a temp root")
+            try expect(!FileManager.default.fileExists(atPath: s.record.path), "the stand-in ran")
+            try expect(!FileManager.default.fileExists(atPath: bad.record.path), "the unsafe stand-in ran")
+        },
+        Check(name: "switch: a release build with a good stand-in root is ready, and status gives its lines") {
+            let s = try StandIn()
+            let sw: EngineSwitch = LocalEngineSwitch(flavor: "release", compiledRoot: s.root.path, allowTemp: true)
+            try same(sw.state, .ready, "state")
+            let r = blocking { await sw.run(.status) }
+            try same(r.exit, 3, "exit")
+            try expect(r.lines.contains("said status") && r.lines.contains("to stderr"), "lines \(r.lines)")
+            try same(parseRecord(s.read()).head["args"], "status", "args")
+        },
+        Check(name: "switch: a root made unsafe after the switch was made turns it to W10") {
+            let s = try StandIn()
+            let sw = LocalEngineSwitch(flavor: "release", compiledRoot: s.root.path, allowTemp: true)
+            try same(sw.state, .ready, "before")
+            try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: s.script.path)
+            try same(sw.state, .unavailable(EngineWords.badRoot), "after")
+            let r = blocking { await sw.run(.status) }
+            try same(r.lines, [EngineWords.badRoot], "lines")
+            try expect(!FileManager.default.fileExists(atPath: s.record.path), "the stand-in ran")
+        },
+    ]
+}
 
 private func runChecks() -> [Check] {
     [
@@ -386,6 +553,33 @@ private func runChecks() -> [Check] {
             try same(r.lines, ["waiting"], "lines")
             try expect(me > 0 && !alive(me), "the script is still running")
             try expect(child > 0 && alive(child), "the child was chased")
+        },
+        Check(name: "run: the app ended mid-run by PID: the script still runs to its end") {
+            // M15's M4: with the output through a pipe, the script died at its first line after the app went.
+            let s = try StandIn("""
+            echo one; : > "$REC/mark-one"
+            /bin/sleep 1
+            echo two; : > "$REC/mark-two"
+            /bin/sleep 0.3
+            echo three; : > "$REC/mark-three"
+            exit 0
+
+            """)
+            let p = Process()
+            guard let me = Bundle.main.executableURL else { throw Failure(description: "no executable") }
+            p.executableURL = me
+            p.arguments = ["--run-status", s.root.path]
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try p.run()
+            let pid = p.processIdentifier
+            defer { if alive(pid) { kill(pid, SIGKILL) } }
+            let mark = { (n: String) in FileManager.default.fileExists(atPath: s.dir.appendingPathComponent("mark-\(n)").path) }
+            try expect(spin(10) { mark("one") }, "the stand-in did not start")
+            try expect(!mark("two"), "too late to end the app mid-run")
+            kill(pid, SIGKILL)   // ours, by PID
+            p.waitUntilExit()
+            try expect(spin(5) { mark("three") }, "the script stopped when the app went (two: \(mark("two")))")
         },
         Check(name: "run: the limits are 600 s to start, 180 s to stop, 60 s for status") {
             try same(EngineLimits.standard.seconds(for: .start), 600, "start")

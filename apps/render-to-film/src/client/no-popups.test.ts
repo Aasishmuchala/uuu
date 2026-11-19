@@ -42,3 +42,14 @@ test('"Open full size" is the in-app view everywhere it is offered', () => {
   assert.match(full, /<Lightbox\b/);
   assert.match(full, /Open full size/);
 });
+
+test('a download is a link to the file itself, never a blob: copy (the Mac app loads those in the frame)', () => {
+  const found: string[] = [];
+  for (const f of sources(CLIENT)) {
+    const text = readFileSync(f, 'utf8');
+    if (/\.download\s*=/.test(text) && /createObjectURL\s*\(/.test(text)) found.push(relative(APP, f));
+  }
+  assert.deepEqual(found, []);
+  const lib = readFileSync(join(CLIENT, 'lib', 'download.ts'), 'utf8');
+  assert.match(lib, /withDownload\(/);
+});

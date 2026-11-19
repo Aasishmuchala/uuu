@@ -11,9 +11,10 @@
 .toolbar {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-4);
+  gap: var(--spacing-2) var(--spacing-4);
   min-height: 52px;
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-5);
   border-bottom: 1px solid var(--color-border);
@@ -25,11 +26,22 @@
   min-width: 0;
 }
 
+/* The actions keep their whole words: when they do not fit beside the title they go to a line of
+   their own, and wrap there, a price always on the line of its button (Price.module.css). */
 .actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--spacing-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.actions > * {
   flex: none;
+  max-width: 100%;
 }
 
 .canvas {

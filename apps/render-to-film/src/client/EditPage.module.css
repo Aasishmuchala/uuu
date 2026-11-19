@@ -10,9 +10,10 @@
 .top {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-4);
+  gap: var(--spacing-2) var(--spacing-4);
   min-height: 52px;
   padding: var(--spacing-2) var(--spacing-4) var(--spacing-2) var(--spacing-6);
   border-bottom: 1px solid var(--color-border);
@@ -26,9 +27,36 @@
   min-width: 0;
 }
 
+.topStart {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.topStart > * {
+  white-space: nowrap;
+}
+
 .topEnd {
   flex: none;
   gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+.exportNote {
+  display: contents;
+}
+
+/* A narrow frame: the bar wraps rather than push Export off the edge, and the sentence beside
+   Export goes (Export's own state says when a cut is still re-rendering). */
+@media (max-width: 760px) {
+  .top {
+    padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-4);
+  }
+
+  .exportNote {
+    display: none;
+  }
 }
 
 .divider {
@@ -184,9 +212,15 @@
 
 .timelineHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-3);
+  gap: var(--spacing-2) var(--spacing-3);
   min-height: 32px;
+}
+
+/* Each control keeps its whole words; a narrow timeline wraps them instead. */
+.timelineHead > * {
+  flex: none;
 }
 
 .timelineEnd {

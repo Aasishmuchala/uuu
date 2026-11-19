@@ -101,6 +101,7 @@
   font-size: var(--fs-note);
   overflow-wrap: anywhere;
   user-select: all;
+  -webkit-user-select: all;
 }
 
 /* Empty and "being built": no frame of its own, so it sits as well on the ground as in a card. */

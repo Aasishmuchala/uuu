@@ -41,3 +41,19 @@ test('a made clip plays in the app player, never under the browser controls and 
 test('every caption puts the name on its own line', () => {
   assert.match(rule(css('parts/ContactSheet.module.css'), '.name'), /flex-basis:\s*100%/);
 });
+
+test('the top bar holds one line in a 1030 and a 390 frame (PLAN-DESKTOP T3)', () => {
+  const app = css('App.module.css');
+  // The trail never wraps; its last step shortens with an ellipsis.
+  assert.match(app, /\n\.topStart ol \{\s*flex-wrap:\s*nowrap;/);
+  assert.match(rule(app, '.topStart li:last-child > :last-child'), /text-overflow:\s*ellipsis/);
+  // Go to and Shortcuts: words and keys, words alone below 1200, icons below 760; never a cut word.
+  assert.match(app, /@media \(max-width: 1200px\)[\s\S]*\.wide \{\s*display: none;[\s\S]*\.mid \{\s*display: contents;/);
+  assert.match(app, /@media \(max-width: 760px\)[\s\S]*\.mid \{\s*display: none;[\s\S]*\.narrow \{\s*display: contents;/);
+  const tsx = css('App.tsx');
+  for (const cls of ['wide', 'mid', 'narrow']) assert.match(tsx, new RegExp(`<span className=\\{styles\\.${cls}\\}>`), cls);
+  assert.match(tsx, /<IconButton label="Go to" tooltip="Go to \(Cmd\+K\)"/);
+  // The allowance chip keeps its words for a screen reader and in its tooltip when only the wallet shows.
+  assert.match(css('money.module.css'), /@media \(max-width: 760px\)[\s\S]*\.chipText \{[^}]*clip-path/);
+  assert.match(css('money.tsx'), /title=\{allowance\?\.words\}/);
+});

@@ -20,6 +20,7 @@ import {
   BreadcrumbItem,
   Breadcrumbs,
   Button,
+  IconButton,
   Kbd,
   SideNav,
   SideNavItem,
@@ -166,6 +167,8 @@ function Studio() {
             <Trail route={route} project={p} />
           </div>
           <div className={styles.topEnd}>
+            {/* Words and keys in a wide frame, words alone in a narrower one, icons (named, with tooltips) in a narrow one. */}
+            <span className={styles.wide}>
               <Button
                 label="Go to"
                 variant="ghost"
@@ -175,7 +178,16 @@ function Studio() {
                 onClick={() => setPalette(true)}
               />
               <Button label="Shortcuts" variant="ghost" size="sm" icon={<Keyboard size={15} aria-hidden />} endContent={<Kbd keys="?" />} onClick={openShortcuts} />
-              <AllowanceChip />
+            </span>
+            <span className={styles.mid}>
+              <Button label="Go to" variant="ghost" size="sm" icon={<Search size={15} aria-hidden />} tooltip="Go to (Cmd+K)" onClick={() => setPalette(true)} />
+              <Button label="Shortcuts" variant="ghost" size="sm" icon={<Keyboard size={15} aria-hidden />} tooltip="Shortcuts (?)" onClick={openShortcuts} />
+            </span>
+            <span className={styles.narrow}>
+              <IconButton label="Go to" tooltip="Go to (Cmd+K)" variant="ghost" size="sm" icon={<Search size={15} aria-hidden />} onClick={() => setPalette(true)} />
+              <IconButton label="Shortcuts" tooltip="Shortcuts (?)" variant="ghost" size="sm" icon={<Keyboard size={15} aria-hidden />} onClick={openShortcuts} />
+            </span>
+            <AllowanceChip />
           </div>
         </header>
       }

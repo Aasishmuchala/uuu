@@ -9,7 +9,8 @@ import Foundation
 public final class Poller {
     public enum State: Equatable { case up(ShellStatus), answering, down }
 
-    public let homePort: Int
+    public let home: HomeOrigin
+    public var homePort: Int { home.port }
     public let timeout: TimeInterval
     private let session: URLSession
     private let fetcher: Fetcher
@@ -18,8 +19,12 @@ public final class Poller {
 
     public static func interval(windowOpen: Bool) -> TimeInterval { windowOpen ? 20 : 30 }
 
-    public init(homePort: Int, timeout: TimeInterval = 5) {
-        self.homePort = homePort
+    public convenience init(homePort: Int, timeout: TimeInterval = 5) {
+        self.init(home: .local(port: homePort), timeout: timeout)
+    }
+
+    public init(home: HomeOrigin, timeout: TimeInterval = 5) {
+        self.home = home
         self.timeout = timeout
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy = .never
@@ -39,7 +44,7 @@ public final class Poller {
         config.timeoutIntervalForResource = timeout
         config.waitsForConnectivity = false
         config.httpMaximumConnectionsPerHost = 1
-        fetcher = Fetcher(port: homePort, limit: ShellStatus.maxBody)
+        fetcher = Fetcher(home: home, limit: ShellStatus.maxBody)
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 1
         session = URLSession(configuration: config, delegate: fetcher, delegateQueue: queue)
@@ -92,7 +97,7 @@ public final class Poller {
     }
 
     private func get(_ path: String, _ done: @escaping (Fetch) -> Void) {
-        guard let url = URL(string: "http://127.0.0.1:\(homePort)\(path)") else { return done(.failed) }
+        guard let url = home.url(path) else { return done(.failed) }
         var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: timeout)
         req.httpMethod = "GET"
         req.httpShouldHandleCookies = false
@@ -103,7 +108,7 @@ public final class Poller {
 }
 
 enum Fetch {
-    case ok(Int, Data)   // a status and a body of at most the limit, from 127.0.0.1:<port>
+    case ok(Int, Data)   // a status and a body of at most the limit, from the home origin
     case elsewhere       // a redirect, or an answer whose address is not the one asked
     case tooBig
     case failed
@@ -112,13 +117,13 @@ enum Fetch {
 // The session's delegate: refuses every redirect, cuts the body at the limit, and hands each task's end to
 // the closure it was watched with.
 final class Fetcher: NSObject, URLSessionDataDelegate {
-    private let port: Int
+    private let home: HomeOrigin
     private let limit: Int
     private let lock = NSLock()
     private var open: [Int: (body: Data, verdict: Fetch?, done: (Fetch) -> Void)] = [:]
 
-    init(port: Int, limit: Int) {
-        self.port = port
+    init(home: HomeOrigin, limit: Int) {
+        self.home = home
         self.limit = limit
     }
 
@@ -143,7 +148,7 @@ final class Fetcher: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard let http = response as? HTTPURLResponse, let url = http.url,
-              url.scheme == "http", url.host == "127.0.0.1", url.port == port else {
+              url.scheme == home.scheme, url.host == home.host, url.port == home.port else {
             mark(dataTask, .elsewhere)
             return completionHandler(.cancel)
         }

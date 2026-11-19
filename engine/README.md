@@ -30,6 +30,22 @@ What you see:
 
 Press Cmd+K anywhere to jump to a page, an agent or a search result. Press `c` for a new task.
 
+## The Mac app
+
+The same home screen in its own Mac window, called Company Engine, with a count of what needs you on the Dock, a menu bar item, a notice when something new needs you (it says only how many), a switch that keeps the Mac awake while agents work, and Start and Stop for the engine. Every screen is the same page as in your browser; the app only adds what a browser tab cannot do. It is not installed yet. Why it is safe, and what it can and cannot do, is in `docs/adr/0020-a-mac-app-outside-the-fence-that-shows-one-address.md`.
+
+- **Install it.** In this folder, run `engine/mac/build.sh --install`. It needs no administrator password and puts the app in your own Applications folder, `~/Applications/Company Engine.app`. It refuses while `engine/mac` has changes that are not committed.
+- **Open it** from `~/Applications` or Spotlight. The first time, macOS asks whether it may show notifications; say yes if you want the notices.
+- **When the engine is off,** the window shows "The engine is off." with a "Start the engine" button and the last lines the engine printed. The home screen comes back by itself as soon as it answers. The app never starts the engine by itself, not when it opens and not when you log in.
+- **Quitting the app, or closing its window, does not stop the engine.** To stop it, use "Stop the engine…" in the Engine menu or the menu bar item; it asks first.
+- **Shortcuts.** Cmd-1 to Cmd-6 open Map, Needs you, Tasks, Dashboards, Files and Jobs; Cmd-comma opens Settings; Cmd-R reloads. Cmd-K and the page's own keys work as in the browser.
+- **Its look is its own.** The light or dark look you chose in Chrome is not carried over; choose it once in the app's Settings.
+- **Outside links** open in your default browser, and only when you click them. An app in App Studio that you open "in its own window" opens there too.
+- **Rebuild it** when the menu says "A newer version of this app is in the repository. Run: engine/mac/build.sh --install". Run that command; nothing else needs changing. The pages themselves never need a rebuild: they always come fresh from the home screen.
+- **Remove it.** Quit it, delete `~/Applications/Company Engine.app`, and, if you want nothing left, delete `~/Library/WebKit/local.uuu.company-engine` and `~/Library/Preferences/local.uuu.company-engine.plist`. The engine is not touched.
+
+How it is built and checked, for whoever works on it: `engine/mac/README.md`.
+
 ## Setup
 
 The first time you open the home screen with no tasks yet, it opens Setup. It is also the "Setup" row in the sidebar, and Cmd+K finds it at any time.
@@ -606,6 +622,7 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - The Researcher's notes: `~/.paperclip/uuu-engine/tasks/research/<goal>/`. Files you shared with it: `knowledge/shared/`.
 - Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away. Each app's own output is `logs/apps/<name>.log`.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.
+- The Mac app, once installed: `~/Applications/Company Engine.app`, with its own website data in `~/Library/WebKit/local.uuu.company-engine`. It runs as you, outside the fence, like the home screen, the doors and App Studio's host, with one narrow rule: it shows one address, runs `engine/bin/engine` with three words, and reads two numbers and three state words. Agents cannot reach it.
 - The company's files (agents, instructions, routines, jobs): `engine/company/`.
 - Decisions and why: `docs/adr/`.
 

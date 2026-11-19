@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { withDownload } from '../../attachment.ts';
 import { type CutColour, colourSteps, cutEnds } from '../../colour.ts';
+import { saveLink } from './download.ts';
 
 /** What a graded download needs from an export (src/timeline.ts `ExportJob`). */
 export type GradedJob = {
@@ -260,13 +262,22 @@ export function useGradedDownload() {
     setError(null);
     setProgress(0);
     recordGradedFilm(src, job, setProgress, controller.signal)
-      .then(({ blob, ext }) => {
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = href;
-        a.download = `${filename}.${ext}`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(href), 1000);
+      .then(async ({ blob, ext }) => {
+        // Kept on this Mac first and saved from its own address: the Mac
+        // app's web view loads a `blob:` link in the frame instead of saving it.
+        let res: Response;
+        try {
+          res = await fetch('/api/graded', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
+        } catch {
+          throw new GradedFilmError('The graded film could not be kept on this Mac. Try again.');
+        }
+        const body = (await res.json().catch(() => null)) as { url?: unknown; error?: unknown; message?: unknown } | null;
+        if (!res.ok || typeof body?.url !== 'string') {
+          const said = body?.message ?? body?.error;
+          throw new GradedFilmError(typeof said === 'string' ? said : `The graded film could not be kept on this Mac (${res.status}).`);
+        }
+        const name = `${filename}.${ext}`;
+        saveLink(withDownload(body.url, name), name);
       })
       .catch((err: unknown) => {
         if (err instanceof GradedFilmCancelled) return;
