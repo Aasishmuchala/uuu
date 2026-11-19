@@ -133,7 +133,7 @@ export const SNAPSHOT = `(() => {
     building: /This page is being built\\./.test(main ? main.innerText : ""),
     busy, clipped, faint, planted,
     text: (main ? main.innerText : document.body ? document.body.innerText : "").slice(0, 4000),
-    bodyText: (document.body ? document.body.innerText : "").slice(0, 6000),
+    bodyText: (document.body ? document.body.innerText : "").slice(0, 60000),
     paints: S.paints, longtasks: S.longtasks.slice(), csp: S.csp.slice(), mutations: S.mutations,
     nodes: document.getElementsByTagName("*").length,
   };

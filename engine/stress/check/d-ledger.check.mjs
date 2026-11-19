@@ -58,6 +58,24 @@ describe("the ledger", () => {
     assert.match(text, /open of medium or higher in pass 2: 2/);
   });
 
+  test("a finding seen again keeps what a person set on it; a fixed one seen again is open; render leaves pass 0 out", () => {
+    const out = env.STRESS_OUT;
+    const f = { ...base, area: "routes", severity: "high", check: "5xx", target: "POST /api/x", title: "POST /api/x answers 500", suspectFiles: ["a.mjs"] };
+    run("set", findingId("routes", "5xx", "POST /api/x"), "--fix", "Check the body first.", "--batch", "B", "--risky", "true", "--suspect", "engine/x.mjs", "--status", "fixed");
+    record(f, { pass: 2, out });
+    const r = load(2, { out }).find((x) => x.check === "5xx");
+    assert.equal(r.fix, "Check the body first.");
+    assert.equal(r.batch, "B");
+    assert.equal(r.risky, true);
+    assert.deepEqual(r.suspectFiles, ["engine/x.mjs"]);
+    assert.equal(r.status, "open");
+    record({ ...base, severity: "high", check: "scratch", target: "x", title: "Only in the scratch pass" }, { pass: 0, out });
+    run("render");
+    const text = readFileSync(env.STRESS_LEDGER, "utf8");
+    assert.doesNotMatch(text, /Only in the scratch pass/);
+    assert.match(text, /passes 1, 2\)/);
+  });
+
   test("checklist writes the launch file from the last pass", () => {
     writeFileSync(join(env.STRESS_OUT, "pass-2", "not-covered.txt"), "apps: real apps not started in the stage\n");
     run("checklist");

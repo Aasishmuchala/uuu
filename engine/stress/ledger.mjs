@@ -10,7 +10,7 @@
 // defaults /Users/aasish/uuu/.router/evidence/stress, .router/STRESS-LEDGER.md and .router/STRESS-LAUNCH.md.
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { atLeastMedium, latest, load, outDir, passDir, passes, record, SEVERITIES, update } from "./lib/ledger.mjs";
+import { atLeastMedium, load, outDir, passDir, passes, record, SEVERITIES, update } from "./lib/ledger.mjs";
 
 const LEDGER_MD = process.env.STRESS_LEDGER || "/Users/aasish/uuu/.router/STRESS-LEDGER.md";
 const LAUNCH_MD = process.env.STRESS_LAUNCH || "/Users/aasish/uuu/.router/STRESS-LAUNCH.md";
@@ -52,13 +52,18 @@ function counts(list) {
 }
 
 function render() {
-  const all = latest().sort((a, b) => sevRank(a.severity) - sevRank(b.severity) || a.area.localeCompare(b.area) || a.id.localeCompare(b.id));
+  // Pass 0 is the builders' scratch pass: once a named pass exists, the ledger is the named passes only.
+  const named = passes().filter((n) => n > 0);
+  const shown = named.length ? named : passes();
+  const byId = new Map();
+  for (const n of shown) for (const r of load(n)) byId.set(r.id, r);
+  const all = [...byId.values()].sort((a, b) => sevRank(a.severity) - sevRank(b.severity) || a.area.localeCompare(b.area) || a.id.localeCompare(b.id));
   const open = all.filter((r) => r.status === "open");
   const c = counts(open);
   const lines = [
     "# Stress ledger",
     "",
-    `Written by engine/stress/ledger.mjs render at ${new Date().toISOString()}, from ${outDir()} (passes ${passes().join(", ") || "none"}). Do not edit by hand.`,
+    `Written by engine/stress/ledger.mjs render at ${new Date().toISOString()}, from ${outDir()} (passes ${shown.join(", ") || "none"}). Do not edit by hand.`,
     "",
     `Open: critical ${c.critical}, high ${c.high}, medium ${c.medium}, low ${c.low}. All findings: ${all.length}.`,
     "",

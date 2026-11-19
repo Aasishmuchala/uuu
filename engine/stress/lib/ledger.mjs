@@ -70,6 +70,23 @@ function save(pass, records, out) {
   renameSync(tmp, file);
 }
 
+// A finding seen again in the same pass (a repro run, a sweep run twice) keeps what a person set on it: the fix,
+// the batch, risky, waitsFor, a diagnosed suspectFiles, and `accepted`. A finding marked fixed and seen again is open.
+function kept(prev, finding) {
+  const k = {};
+  if (prev.fix && !finding.fix) {
+    k.fix = prev.fix;
+    if (prev.suspectFiles && prev.suspectFiles.length) k.suspectFiles = prev.suspectFiles;
+  }
+  if (prev.batch && finding.batch === undefined) k.batch = prev.batch;
+  if (prev.risky && finding.risky === undefined) k.risky = true;
+  if (prev.waitsFor && finding.waitsFor === undefined) k.waitsFor = prev.waitsFor;
+  if (prev.status === "accepted" && !finding.status) k.status = "accepted";
+  if (prev.severity !== finding.severity && prev.fix && !finding.fix) k.severity = prev.severity;
+  if (prev.title && /\bflaky\b/.test(prev.title) && !finding.fix) k.title = prev.title;
+  return k;
+}
+
 export function record(finding, { pass, out } = {}) {
   const p = pass ?? finding.pass;
   if (p === undefined || p === null || !Number.isInteger(Number(p))) throw new Error("ledger: a finding needs its pass");
@@ -77,7 +94,7 @@ export function record(finding, { pass, out } = {}) {
   const all = load(p, { out });
   const at = all.findIndex((x) => x.id === r.id);
   if (at === -1) all.push(r);
-  else all[at] = { ...all[at], ...r };
+  else all[at] = { ...all[at], ...r, ...kept(all[at], finding) };
   save(p, all, out);
   return r;
 }
