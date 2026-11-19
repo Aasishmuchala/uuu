@@ -120,9 +120,10 @@ export default function register(app) {
       : null;
     const inbox = await inboxRead;
 
-    // partial: a source of the inbox was not read (not answering, or failed), so needsYou is a floor, not the whole
+    // partial: a source of the inbox was not read (not answering, or failed; not one that says it is not installed), so
+    // needsYou is a floor, not the whole
     // count (REVIEW-STRESS 2); notConnected says which, in the inbox's own words.
-    const counts = { needsYou: inbox.counts.total, partial: inbox.notConnected.length > 0, running: 0, tasksOpen: 0 };
+    const counts = { needsYou: inbox.counts.total, partial: inbox.notConnected.some((n) => n.failed === true), running: 0, tasksOpen: 0 };
     if (data) {
       const ids = ctx.ids();
       if (ids?.projectId) {

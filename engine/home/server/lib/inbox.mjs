@@ -141,7 +141,7 @@ const LATE_REASON = {
   brain: "Your files could not be read in time.",
 };
 const BOARD_LATE = "The board is not answering.";
-const lists = new WeakMap(); // board client -> Map(source id -> { running, runningAt, kept: { value, at } | null })
+const lists = new WeakMap(); // board client -> Map(source id -> { running, runningAt, seq, kept: { value, at } | null })
 
 function lateError(src) {
   return new HomeError(502, LATE_REASON[src.id] || BOARD_LATE, "Try again in a minute. If it keeps happening, look at Health.", "source_slow");
@@ -151,22 +151,38 @@ function listState(key, id) {
   let m = lists.get(key);
   if (!m) { m = new Map(); lists.set(key, m); }
   let st = m.get(id);
-  if (!st) { st = { running: null, runningAt: 0, kept: null }; m.set(id, st); }
+  if (!st) { st = { running: null, runningAt: 0, seq: 0, kept: null }; m.set(id, st); }
   return st;
 }
 
+// After an owner's action has changed what a source lists: nothing kept is served again, and no call that was
+// already running may keep its answer (REVIEW-STRESS second look 2). board: the home's own client (the key the
+// listing reads use), not an action's unheld copy.
+export function forgetKept(board) {
+  const m = board ? lists.get(board) : null;
+  if (!m) return;
+  for (const st of m.values()) {
+    st.kept = null;
+    st.running = null;
+    st.seq += 1;
+  }
+}
+
 // One list call; when it ends, an answer that came after the deadline is kept, one in time clears what was kept.
+// Each call carries its own number: only the newest call writes what is kept, so a call let go (or one running when an
+// action forgot the kept state) that ends late never overwrites a newer answer.
 function startList(ctx, src, st, ms) {
   const at = Date.now();
+  const me = ++st.seq;
   const work = Promise.resolve().then(() => src.list(ctx));
   st.running = work;
   st.runningAt = at;
   work.then((value) => {
     if (st.running === work) st.running = null;
-    st.kept = Date.now() - at >= ms ? { value, at: Date.now() } : null;
+    if (me === st.seq) st.kept = Date.now() - at >= ms ? { value, at: Date.now() } : null;
   }, () => {
     if (st.running === work) st.running = null;
-    st.kept = null;
+    if (me === st.seq) st.kept = null;
   });
   return work;
 }
@@ -210,7 +226,9 @@ export async function mergeInbox(ctx, sources, { deadlineMs = SOURCE_DEADLINE_MS
       }
     } catch (e) {
       if (!(e instanceof HomeError)) ctx.log(`inbox source ${src.id} failed: ${String(e?.message || e).split("\n")[0]}`);
-      notConnected.push({ source: src.id, reason: plainReason(e) });
+      // failed (not listed in any answer): the source was not read, as against one that says it is not set up (the books
+      // not installed), which is whole as it is (REVIEW-STRESS second look 1).
+      notConnected.push(Object.defineProperty({ source: src.id, reason: plainReason(e) }, "failed", { value: true, enumerable: false }));
       unread.set(src.id, e instanceof HomeError ? e : unreadError(null));
     }
   }));
@@ -295,6 +313,7 @@ export function createActor(sources) {
       throw new HomeError(409, "This changed after you looked at it. Nothing was done.", "Look at it again, then decide.", "changed_since_seen");
     }
     const out = await owners.get(id).act({ ...ctx, acting: true, item, variant: picking ? variant : null }, id, action, text || null);
+    forgetKept(given.board);
     handled.set(id, Date.now());
     recordActed(ctx, item, action);
     if (handled.size > 500) handled.delete(handled.keys().next().value);

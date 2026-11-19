@@ -260,3 +260,61 @@ test("/api/shell says when its Needs-you count is partial (REVIEW-STRESS 2)", as
     assert.deepEqual(r.json.notConnected, []);
   } finally { await whole.close(); }
 });
+
+test("books not installed: the shell's count is whole (partial false); a source that failed makes it partial (second look 1)", async () => {
+  const h = await startStubsHome({ port: 0, benchInstalled: false });
+  try {
+    const r = await call(h.url, "GET", "/api/shell");
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.counts.partial, false);
+    assert.deepEqual(r.json.notConnected, [{ source: "books", reason: "Books is not installed on this Mac yet." }]);
+    const inbox = await call(h.url, "GET", "/api/inbox");
+    assert.deepEqual(inbox.json.notConnected, [{ source: "books", reason: "Books is not installed on this Mac yet." }], "no new key in the inbox's answer");
+  } finally { await h.close(); }
+  const failed = await mergeInbox({ board: {}, log() {} }, [{ id: "bench", async list() { throw new Error("down"); } }]);
+  assert.equal(failed.notConnected[0].failed, true);
+  const declared = await mergeInbox({ board: {}, log() {} }, [{ id: "bench", async list() { return { items: [], notConnected: { source: "books", reason: "x" } }; } }]);
+  assert.equal(declared.notConnected[0].failed, undefined);
+});
+
+test("an item handled by an action does not come back from what was kept, nor from a call already running (second look 2)", async () => {
+  const { createActor } = await import("../lib/inbox.mjs");
+  const board = {};
+  let waiting = true;
+  const src = {
+    id: "bench",
+    async list() { const snapshot = waiting ? [{ ...item("bench:1", "books"), actions: [{ id: "approve", label: "Approve", style: "primary", needsNote: false }] }] : []; await new Promise((r) => setTimeout(r, 300)); return { items: snapshot }; },
+    async act() { waiting = false; return { message: "Approved." }; },
+  };
+  const ctx = { board, log() {} };
+  await mergeInbox(ctx, [src], { deadlineMs: 100 }); // late
+  await new Promise((r) => setTimeout(r, 250)); // ends: kept, with bench:1
+  const kept = await mergeInbox(ctx, [src], { deadlineMs: 100 }); // served kept; a call (that read bench:1) runs behind it
+  assert.deepEqual(kept.items.map((i) => i.id), ["bench:1"]);
+  // The action re-reads the source at once (an action is never served kept), then acts.
+  const fast = { ...src, list: async () => ({ items: waiting ? [{ ...item("bench:1", "books"), actions: [{ id: "approve", label: "Approve", style: "primary", needsNote: false }] }] : [] }) };
+  const actor = createActor([fast]);
+  const out = await actor({ board, log() {}, decisions: null }, { id: "bench:1", action: "approve" });
+  assert.equal(out.message, "Approved.");
+  await new Promise((r) => setTimeout(r, 400)); // the call that was running before the action ends: not kept
+  const after = await mergeInbox(ctx, [src], { deadlineMs: 1000 });
+  assert.deepEqual(after.items.map((i) => i.id), [], "the handled item is not shown again");
+});
+
+test("a call let go that ends late does not overwrite a newer kept answer (per-call token)", async () => {
+  const ctx = { board: {}, log() {} };
+  let n = 0;
+  const resolvers = [];
+  const src = { id: "bench", list: () => { n += 1; const me = n; return new Promise((r) => resolvers.push(() => r({ items: [item(`bench:${me}`, "books")] }))); } };
+  await mergeInbox(ctx, [src], { deadlineMs: 50 }); // call 1, late, still running
+  // Call 1 is let go (as after KEPT_MS) and call 2 starts and ends late: kept is call 2's.
+  const { forgetKept } = await import("../lib/inbox.mjs");
+  forgetKept(ctx.board);
+  await mergeInbox(ctx, [src], { deadlineMs: 50 }); // call 2
+  resolvers[1]();
+  await new Promise((r) => setTimeout(r, 20));
+  resolvers[0](); // call 1 ends last
+  await new Promise((r) => setTimeout(r, 20));
+  const out = await mergeInbox(ctx, [src], { deadlineMs: 50 });
+  assert.deepEqual(out.items.map((i) => i.id), ["bench:2"]);
+});
