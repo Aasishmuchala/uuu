@@ -36,6 +36,12 @@ function codeOf(fn) {
 const notExecutable = (p) => (statSync(p).mode & 0o111) === 0;
 const noTemp = (dir) => readdirSync(dir).filter((n) => n.startsWith(".")).length === 0;
 
+test("cleanName: a name over 1000 characters is refused (name_long), a 120-character one is still cleaned (stress S-routes-fe165407)", () => {
+  assert.equal(codeOf(() => cleanName(`${"a".repeat(1001)}.md`)), "400 name_long");
+  const ok = cleanName(`${"b".repeat(120)}.png`);
+  assert.ok(ok.length <= 100 && ok.endsWith(".png"));
+});
+
 test("cleanName: path parts, dots, a NUL and odd characters are dropped; endings are lower-cased; a long name is capped", () => {
   const cases = [
     ["../x.md", "x.md"], ["brand/../../etc/passwd", "passwd.md"], ["..\\..\\y.txt", "y.txt"], [".hidden.md", "hidden.md"],

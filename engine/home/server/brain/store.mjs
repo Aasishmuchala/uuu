@@ -30,6 +30,7 @@ export const MAX_PDF_BYTES = 10 * 1024 * 1024;
 export const MAX_FILES = 500;
 export const MAX_TOTAL_BYTES = 200 * 1024 * 1024;
 export const MAX_NAME = 100;
+const MAX_INPUT = 1000; // a typed name longer than this is refused before it is cleaned
 export const MAX_VIEW_TEXT = 262144;
 export const ENDINGS = [".md", ".txt", ".csv", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".pdf"];
 // The nine folders of 32.1 and `loose` (the root itself), with what belongs in each.
@@ -70,6 +71,7 @@ export class BrainError extends Error {
 
 const ERR = {
   nameMissing: () => new BrainError(400, "Give the file a name.", "Type a short name, such as price list.", "name_missing"),
+  nameLong: () => new BrainError(400, "That name is too long.", "Use a short name, such as price list.", "name_long"),
   nameEmpty: () => new BrainError(400, "That name has no letters or numbers in it.", "Use a name such as price list or site visit.", "name_empty"),
   nameType: () => new BrainError(400, "Only text, tables, pictures and PDF files can be added.", "Save it as text, a table, a picture or a PDF, then add it again.", "name_type"),
   kindMismatch: () => new BrainError(400, "That file is not what its name says.", "Check the file and its name, then add it again.", "kind_mismatch"),
@@ -100,6 +102,7 @@ const FORM_OF = new Map(BASICS.map((b) => [b.file, b.form]));
 // among them) are dropped; leading dots, spaces, dashes and underscores are dropped; a missing ending becomes .md.
 export function cleanName(input) {
   if (typeof input !== "string") throw ERR.nameMissing();
+  if (input.length > MAX_INPUT) throw ERR.nameLong();
   let n = input.split(/[\\/]/).pop();
   n = n.normalize("NFC").replace(/[^A-Za-z0-9 ._-]/g, "");
   n = n.replace(/^[ ._-]+/, "").replace(/ +$/, "").replace(/\.{2,}/g, ".");

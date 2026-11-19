@@ -11,6 +11,7 @@ import { readChecked } from "../lib/taskfiles.mjs";
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export const MAX_NAME = 100;
+const MAX_INPUT = 1000; // a typed name longer than this is refused before it is cleaned
 const VALID_NAME = /^[A-Za-z0-9][A-Za-z0-9 ._-]*\.(md|txt)$/;
 const SCHEMA = 1;
 
@@ -26,6 +27,7 @@ export class KnowledgeError extends Error {
 // A name typed by the owner -> the one safe file name it becomes, or a KnowledgeError (400).
 export function cleanName(input) {
   if (typeof input !== "string") throw new KnowledgeError(400, "Give the document a name.", "Type a short name, such as warranty.", "name_missing");
+  if (input.length > MAX_INPUT) throw new KnowledgeError(400, "That name is too long.", "Use a short name, such as warranty.", "name_long");
   // Only the last part counts: anything before a slash is dropped, never followed.
   let n = input.split(/[\\/]/).pop();
   n = n.normalize("NFC").replace(/[^A-Za-z0-9 ._-]/g, "");

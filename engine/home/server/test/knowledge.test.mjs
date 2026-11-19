@@ -95,6 +95,18 @@ test("names: path parts and dots are dropped, a missing ending becomes .md, bad 
   });
 });
 
+test("names: a name over 1000 characters is refused with its own 400, a 120-character one is still cleaned (stress S-routes-fe165407)", async () => {
+  await withHome(async (h) => {
+    const big = await post(h, { name: `${"a".repeat(1001)}.md`, text: "x" });
+    assert.equal(big.status, 400);
+    assert.equal(big.json.error.message, "That name is too long.");
+    assert.equal(big.json.error.code, "name_long");
+    const ok = await post(h, { name: `${"b".repeat(120)}.md`, text: "x" });
+    assert.equal(ok.status, 201);
+    assert.ok(ok.json.doc.name.length <= 100 && ok.json.doc.name.endsWith(".md"));
+  });
+});
+
 test("a second upload of the same name is 409 and keeps the first", async () => {
   await withHome(async (h) => {
     assert.equal((await post(h, { name: "dup.md", text: "first" })).status, 201);
