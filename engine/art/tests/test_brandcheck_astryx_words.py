@@ -125,6 +125,8 @@ class PlainKitUnchangedTest(AstryxBase):
     not its words."""
 
     def before_tool(self):
+        if subprocess.run([sys.executable, "-I", "-c", "import PIL"], capture_output=True).returncode != 0:
+            self.skipTest("the drawing library is not installed for this Python when run with -I (run engine/art/install.sh)")
         r = subprocess.run(["git", "-C", REPO, "show", BEFORE + ":engine/art/brandcheck.py"], capture_output=True,
                            timeout=30)
         if r.returncode != 0 or not r.stdout:
