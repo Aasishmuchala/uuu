@@ -4,7 +4,7 @@
 // command menu and the compose dialog, the keys, the skip link and the aria-live line. It reads GET /api/shell every
 // 10 seconds and GET /api/setup every 60 seconds, and gives every page the context of lib/context.js.
 import { html, useCallback, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
-import { useResource } from "../lib/api.js";
+import { useEngineDown, useResource } from "../lib/api.js";
 import { AppContext } from "../lib/context.js";
 import { useRoute } from "../lib/router.js";
 import { loadSettings, saveSettings as storeSettings } from "../lib/settings.js";
@@ -22,6 +22,8 @@ import { WorkPanel } from "./work-panel.js";
 
 const OVERLAYS = ["command", "compose", "needs", "menu"];
 const SHELL_EVERY = 10000;
+// How often the shell asks whether the engine still answers, so an open page says so within 5 s (S-recovery-0dfd431c).
+const ALIVE_EVERY = 3000;
 const NARROW = "(max-width: 859px)";
 const MIDDLE = "(max-width: 1099px)";
 
@@ -167,6 +169,8 @@ export function AppShell() {
   // Read every SHELL_EVERY while the page is visible, and once as soon as it is visible again (useResource's own
   // visibilitychange): nothing is read while it is hidden, so the sidebar's Needs you count catches up on return.
   const shell = useResource("/api/shell", { every: SHELL_EVERY });
+  // The engine stopped answering: said over whatever is on screen; when it answers again the shell is read at once.
+  const down = useEngineDown(ALIVE_EVERY, () => shell.refresh());
   // The guided setup's state, for its sidebar row and the first-run opening (read on its own, not every 10 seconds).
   const setup = useResource("/api/setup", { every: 60000 });
   const setupDone = useRef(false);
@@ -362,7 +366,7 @@ export function AppShell() {
   // then lies over it, and its Save is never under the bar (M52 F2).
   const team = shell.data?.team || [];
   const pane = route ? paneOf(route.id, address.query) : "normal";
-  const offline = shell.error && !shell.data ? shell.error : null;
+  const offline = shell.error && !shell.data ? shell.error : down;
   const cls = ["s-app", narrow ? "s-app--narrow" : `s-app--${side}`, panel && !narrow ? "has-panel" : ""].filter(Boolean).join(" ");
 
   return html`

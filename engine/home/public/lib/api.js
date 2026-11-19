@@ -77,6 +77,34 @@ export function useVisibleInterval(fn, ms) {
   }, [ms]);
 }
 
+// Whether the engine still answers (S-recovery-0dfd431c): the home server's /healthz, read every `ms` while the page
+// is visible (and once when it is seen again). A quiet refresh that fails keeps its old data on screen, so without this
+// an open page never says the engine stopped. -> the ApiError of the last read when the engine did not answer, else
+// null; `onBack()` runs once when it answers again.
+export function useEngineDown(ms, onBack) {
+  const [down, setDown] = useState(null);
+  const seq = useRef(0);
+  const was = useRef(false);
+  const back = useRef(onBack);
+  back.current = onBack;
+  const check = useCallback(async () => {
+    const n = ++seq.current;
+    try {
+      await api.get("/healthz");
+      if (n !== seq.current || !was.current) return;
+      was.current = false;
+      setDown(null);
+      if (back.current) back.current();
+    } catch (error) {
+      if (n !== seq.current || !error.offline) return;
+      was.current = true;
+      setDown(error);
+    }
+  }, []);
+  useVisibleInterval(check, ms);
+  return down;
+}
+
 // Loads one API path. `every` refreshes it quietly (no placeholder, the old answer stays on screen).
 // Returns { data, error, loading, reload, refresh }.
 export function useResource(path, { every = 0 } = {}) {
