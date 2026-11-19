@@ -111,6 +111,7 @@
   font-family: var(--font-mono);
   white-space: normal;
   overflow-wrap: anywhere;
+  -webkit-user-select: text;
   user-select: text;
 }
 
