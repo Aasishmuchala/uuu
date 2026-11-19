@@ -209,6 +209,7 @@ function makeApps(root, base, { apps, appsSpawn }) {
 function stagedConfig(engineDir, root, ports, { appsSpawn, apps }) {
   const file = join(engineDir, "config.json");
   const cfg = JSON.parse(readFileSync(file, "utf8"));
+  const liveBooks = cfg.ports.benchWeb;
   cfg.stateRoot = join(root, "state");
   cfg.node24 = dirname(dirname(NODE));
   for (const k of Object.keys(cfg.ports)) {
@@ -219,6 +220,13 @@ function stagedConfig(engineDir, root, ports, { appsSpawn, apps }) {
   cfg.paperclip.instanceRoot = join(root, "paperclip");
   cfg.fence.realClaude = join(root, "root", "fake-claude");
   cfg.fence.policyPortsAllowed = [ports.benchWeb];
+  // The company file's fence policies name the books' live port; in the copy they name the staged one, or the home
+  // refuses the whole company file (no agents, departments, routines or jobs on any page).
+  const company = join(engineDir, "company", "company.json");
+  if (liveBooks && existsSync(company)) {
+    const text = readFileSync(company, "utf8");
+    writeFileSync(company, text.split(`127.0.0.1:${liveBooks}"`).join(`127.0.0.1:${ports.benchWeb}"`));
+  }
   if (apps && appsSpawn === "fixture") {
     cfg.doors.generate.apps = [...new Set([...(cfg.doors.generate.apps || []), "fix"])];
   }
