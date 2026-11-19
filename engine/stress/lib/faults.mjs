@@ -14,9 +14,10 @@ import http from "node:http";
 export const BASES = Object.freeze([4300, 4400, 4500, 4600, 4700, 4800]);
 export const MODES = Object.freeze(["off", "slow3", "slow30", "500", "badjson", "cut", "wrongshape", "html", "reset"]);
 
-// Offsets from the stage's base port. Fakes (provider, runway, runway-mcp, higgsfield, internet) take port 0.
+// Offsets from the stage's base port. `seats` is seat 1's port (five in a row, base+2 to base+6) and `remote` the
+// Windows door's, both held free and bound only if the stage turns them on. Fakes (provider, runway, runway-mcp, higgsfield, internet) take port 0.
 export const OFFSETS = Object.freeze({
-  board: 1, gate: 10, gateNarrow: 11, relay: 20, web: 30, generate: 40, viewer: 50, preview: 60,
+  board: 1, seats: 2, gate: 10, gateNarrow: 11, remote: 15, relay: 20, web: 30, generate: 40, viewer: 50, preview: 60,
   apps: 70, brain: 90, benchWeb: 91, benchSocketio: 92, benchRedisQueue: 93, benchRedisCache: 94, benchDb: 95, home: 99,
 });
 export const PREVIEW_SITES = Object.freeze({ first: 61, last: 69 });
