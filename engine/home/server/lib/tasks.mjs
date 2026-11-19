@@ -128,6 +128,11 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
   const ids = needIds(ctx);
   const companyId = ids.companyId;
   const enc = encodeURIComponent(companyId);
+  // The inbox is read beside the board's lists, not after them, so a slow board is waited for once (S-faults-2aa3b0ea).
+  const inboxRead = withInbox
+    ? mergeInbox(ctx, ctx.home.inboxSources).then((m) => m.items)
+    : Promise.resolve([]);
+  inboxRead.catch(() => {}); // when the board's lists fail first, the inbox's answer is not waited for
   const [issues, agentList, liveRuns, boardRoutines] = await Promise.all([
     loadIssues(ctx, companyId),
     ctx.board.get(`/api/companies/${enc}/agents`).then((l) => (Array.isArray(l) ? l : [])),
@@ -199,9 +204,6 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
   let wanted = [];
   if (withComments === "open") wanted = goals.filter((g) => isOpen(g, accepted)).slice(0, OPEN_GOALS_MAX);
   else if (withComments === "all") wanted = goals.slice(0, ALL_GOALS_MAX);
-  const inboxRead = withInbox
-    ? mergeInbox(ctx, ctx.home.inboxSources).then((m) => m.items)
-    : Promise.resolve([]);
   const commentsRead = inBatches(wanted, async (g) => {
     tctx.comments.set(g.id, await treeComments(tctx, g));
   });

@@ -12,8 +12,13 @@ export function boardOff() {
 
 // Reads get `timeoutMs`; writes (POST, PATCH, PUT, DELETE) get `writeTimeoutMs`, as a comment write on a
 // busy board can take longer than a read and must not be reported as "not answering" when it worked.
-export function createBoard({ baseUrl, ids, companyName, log = () => {}, timeoutMs = 8000, writeTimeoutMs = 20000 }) {
+// After a read has timed out, reads fail at once with the same words for `holdMs` (S-faults-ceaa6100): a board that
+// is up but hung would otherwise hold every page's every read for the whole timeout, one after another. A refused
+// connection is not held (it fails at once anyway), and writes are never held.
+export const SLOW_HOLD_MS = 5000;
+export function createBoard({ baseUrl, ids, companyName, log = () => {}, holdMs = SLOW_HOLD_MS, timeoutMs = 8000, writeTimeoutMs = 20000 }) {
   let cachedCompanyId = null;
+  let heldUntil = 0;
 
   async function call(method, path, body) {
     if (typeof path !== "string" || !path.startsWith("/api/") || path.includes("..")) {
@@ -21,11 +26,13 @@ export function createBoard({ baseUrl, ids, companyName, log = () => {}, timeout
     }
     const headers = { accept: "application/json" };
     if (body !== undefined) headers["content-type"] = "application/json";
+    const read = method === "GET" || method === "HEAD";
+    if (read && Date.now() < heldUntil) throw boardOff();
     let res;
     try {
-      const limit = method === "GET" || method === "HEAD" ? timeoutMs : writeTimeoutMs;
-      res = await httpRequest(baseUrl + path, { method, headers, body, timeoutMs: limit });
-    } catch {
+      res = await httpRequest(baseUrl + path, { method, headers, body, timeoutMs: read ? timeoutMs : writeTimeoutMs });
+    } catch (e) {
+      if (read && e && e.message === "timed out") heldUntil = Date.now() + holdMs;
       throw boardOff();
     }
     const where = path.split("?")[0];

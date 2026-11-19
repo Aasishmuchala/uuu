@@ -17,7 +17,7 @@ const DEPARTMENTS = [
 ];
 const BENCH = new Set(["books", "customers", "support", "people"]);
 const CACHE_MS = 1000;
-const cache = new WeakMap(); // board client -> { at, data, inbox }, so a second request in a second adds no board calls
+const kept = new WeakMap(); // board client -> { board, inbox }: { at, promise }, so a second request in a second adds no board calls
 
 function stateOf(agent, live) {
   if (agent.status === "pending_approval") return "waiting_for_you";
@@ -39,22 +39,21 @@ async function readBoard(ctx) {
   return { company, agents: Array.isArray(agents) ? agents : [], live: Array.isArray(live) ? live : [], liveKnown: Array.isArray(live), issues };
 }
 
-// The board's answers and the merged inbox, kept for one second.
-async function snapshot(ctx, boardOn) {
-  const hit = cache.get(ctx.board);
-  if (hit && hit.boardOn === boardOn && Date.now() - hit.at < CACHE_MS) return hit;
-  let data = null;
-  if (boardOn) {
-    try {
-      data = await readBoard(ctx);
-    } catch (e) {
-      if (!(e instanceof HomeError)) throw e;
-    }
-  }
-  const inbox = await mergeInbox(ctx, ctx.home.inboxSources);
-  const fresh = { at: Date.now(), boardOn, data, inbox };
-  cache.set(ctx.board, fresh);
-  return fresh;
+// The board's answers and the merged inbox, each kept for one second, and each shared while it runs by every request
+// that comes meanwhile (S-faults-1b2b2774: with the board or the books slow, each beat of each open page would
+// otherwise start its own read and the reads would pile up). kind: "board" or "inbox".
+function shared(ctx, kind, read) {
+  let slot = kept.get(ctx.board);
+  if (!slot) { slot = {}; kept.set(ctx.board, slot); }
+  const hit = slot[kind];
+  if (hit && (hit.at === null || Date.now() - hit.at < CACHE_MS)) return hit.promise;
+  const entry = { at: null, promise: null };
+  entry.promise = read().then(
+    (v) => { entry.at = Date.now(); return v; },
+    (e) => { if (slot[kind] === entry) delete slot[kind]; throw e; },
+  );
+  slot[kind] = entry;
+  return entry.promise;
 }
 
 function companyAgents(ctx) {
@@ -106,6 +105,9 @@ function dockOf(ctx, data, inbox, team, goals) {
 export default function register(app) {
   app.get("/api/shell", async (ctx) => {
     const env = { config: ctx.config, urls: ctx.home.urls, bench: ctx.bench, port: ctx.home.port };
+    // The inbox is read beside the parts' checks, not after them: it does not depend on them.
+    const inboxRead = shared(ctx, "inbox", () => mergeInbox(ctx, ctx.home.inboxSources));
+    inboxRead.catch(() => {});
     const [board, books, gate] = await Promise.all([boardState(env), booksState(env), gateState(env)]);
     // `gate` is added to 26.4's `engine` (M52 F4), so the top bar's Health dot is not "everything is on" while the gate is off.
     const engine = {
@@ -113,7 +115,10 @@ export default function register(app) {
       books: books.state === "not_installed" ? "not_installed" : books.state === "on" ? "on" : "off",
       gate: gate.state === "on" ? "on" : "off",
     };
-    const { data, inbox } = await snapshot(ctx, engine.board === "on");
+    const data = engine.board === "on"
+      ? await shared(ctx, "board", () => readBoard(ctx).catch((e) => { if (!(e instanceof HomeError)) throw e; return null; }))
+      : null;
+    const inbox = await inboxRead;
 
     const counts = { needsYou: inbox.counts.total, running: 0, tasksOpen: 0 };
     if (data) {

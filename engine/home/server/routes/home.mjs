@@ -15,16 +15,16 @@ export default function register(app) {
     const now = Date.now();
     const company = { name: ctx.config.paperclip.companyName };
     const roles = safeRoles(ctx);
-    const merged = await mergeInbox(ctx, ctx.home.inboxSources);
-
-    let tctx = null;
+    // The inbox and the task model are read at once, so a slow board is waited for once (S-faults-1b2b2774).
     let boardOff = null;
-    try {
-      tctx = await loadTaskContext(ctx, { withInbox: false });
-    } catch (e) {
-      if (!(e instanceof HomeError)) throw e;
-      boardOff = { reason: e.message, next: e.next };
-    }
+    const [merged, tctx] = await Promise.all([
+      mergeInbox(ctx, ctx.home.inboxSources),
+      loadTaskContext(ctx, { withInbox: false }).catch((e) => {
+        if (!(e instanceof HomeError)) throw e;
+        boardOff = { reason: e.message, next: e.next };
+        return null;
+      }),
+    ]);
 
     const decorated = tctx ? decorateInbox(merged.items, tctx) : merged.items.map((i) => ({ ...i, taskId: null, identifier: null, agent: null }));
     const needsYou = { total: decorated.length, items: decorated.slice(0, 20), notConnected: merged.notConnected };

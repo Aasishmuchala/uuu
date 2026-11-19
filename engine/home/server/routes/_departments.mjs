@@ -246,8 +246,22 @@ async function agentAndWork(ctx, slug, fallbackName) {
   }
 }
 
+// A department page's first read of the books has this long (S-faults-969d5bdc): with the books up but too slow the
+// page says they are not answering, instead of loading for the books client's whole 15 s. The read itself goes on and
+// ends by that client's own timeout.
+export const FIRST_READ_MS = 4000;
+function firstRead(work, ms) {
+  let timer = null;
+  const late = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new HomeError(502, "The books are not answering.", "Run: engine start", "bench_slow")), ms);
+  });
+  work.catch(() => {});
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
+
 // def: { id, title, agentSlug, agentName, mainDoctype, switches: [...] }; build(ctx) -> { figures, sections }.
-export async function departmentPage(ctx, def, build) {
+// options: firstReadMs (tests), FIRST_READ_MS.
+export async function departmentPage(ctx, def, build, { firstReadMs = FIRST_READ_MS } = {}) {
   const frame = { id: def.id, title: def.title, switches: def.switches };
   const off = async (reason, next) => ({
     ...frame, connected: false, notConnected: { reason, next },
@@ -258,8 +272,9 @@ export async function departmentPage(ctx, def, build) {
     "Free some disk space, then run: engine/books/install.sh");
   let there;
   try {
-    there = await ctx.bench.has(def.mainDoctype);
+    there = await firstRead(ctx.bench.has(def.mainDoctype), firstReadMs);
   } catch (e) {
+    if (e instanceof HomeError && e.code === "bench_slow") return off("The books are not answering.", "Try again in a minute. If it keeps happening, look at Health.");
     if (e instanceof HomeError && e.code === "bench_off") return off("The books are switched off.", "Open Health to see how to start them.");
     throw e;
   }

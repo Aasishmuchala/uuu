@@ -127,14 +127,56 @@ function dropFailedWhileHeld(items, owners) {
   }
 }
 
-export async function mergeInbox(ctx, sources) {
+// A listing source has this long to answer (S-faults-1b2b2774): each makes several board or books calls one after
+// another, each with only its client's idle timeout (board 8 s, books 15 s), and every page's shell and content wait
+// for the inbox. Past it the source is listed as not answering, with its part's plain sentence, and its late answer
+// is dropped; what it was doing ends by its own client's timeout. Until it has ended, the source is not asked again:
+// it is listed as not answering at once, so slow reads do not pile up and no page waits for the same slow part twice.
+// A late call that never ends is forgotten after LATE_FORGET_MS. An action's re-read (ctx.acting) is never cut short.
+export const SOURCE_DEADLINE_MS = 4000;
+const LATE_FORGET_MS = 60000;
+const LATE_REASON = {
+  bench: "The books are not answering.",
+  brain: "Your files could not be read in time.",
+};
+const BOARD_LATE = "The board is not answering.";
+const late = new WeakMap(); // board client -> Map(source id -> { work, at }: its late list call, still running)
+
+function lateError(src) {
+  return new HomeError(502, LATE_REASON[src.id] || BOARD_LATE, "Try again in a minute. If it keeps happening, look at Health.", "source_slow");
+}
+
+function withDeadline(ctx, src, ms) {
+  if (ctx.acting || !(ms > 0)) return Promise.resolve().then(() => src.list(ctx));
+  const key = ctx.board || ctx;
+  const running = late.get(key);
+  const stuck = running && running.get(src.id);
+  if (stuck && Date.now() - stuck.at < LATE_FORGET_MS) return Promise.reject(lateError(src));
+  const work = Promise.resolve().then(() => src.list(ctx));
+  work.catch(() => {}); // a late failure is not an unhandled rejection
+  let timer = null;
+  const cut = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      let m = late.get(key);
+      if (!m) { m = new Map(); late.set(key, m); }
+      m.set(src.id, { work, at: Date.now() });
+      const done = () => { if (m.get(src.id)?.work === work) m.delete(src.id); };
+      work.then(done, done);
+      reject(lateError(src));
+    }, ms);
+  });
+  return Promise.race([work, cut]).finally(() => clearTimeout(timer));
+}
+
+// options: deadlineMs (tests), the time each listing source has (SOURCE_DEADLINE_MS).
+export async function mergeInbox(ctx, sources, { deadlineMs = SOURCE_DEADLINE_MS } = {}) {
   const items = [];
   const notConnected = [];
   const owners = new Map();
   const unread = new Map(); // source id -> the error to give for an action on one of its items
   await Promise.all(sources.map(async (src) => {
     try {
-      const out = (await src.list(ctx)) || {};
+      const out = (await withDeadline(ctx, src, deadlineMs)) || {};
       for (const item of Array.isArray(out.items) ? out.items : []) {
         if (!item || typeof item.id !== "string" || owners.has(item.id)) continue;
         owners.set(item.id, src);
