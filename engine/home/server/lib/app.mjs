@@ -2,6 +2,10 @@
 // and the `ctx` every handler gets. It holds the owner's rights, so every request is treated as hostile:
 // it binds 127.0.0.1 only, checks Host, needs the same-origin headers on anything that changes state,
 // caps bodies (2 MB, or a route's own limit up to 16 MB), never reflects an answer from the board or the bench, and never logs a key.
+// The seats (PLAN-DESKTOP T7, lib/seats.mjs): the same server on five more 127.0.0.1 ports, one per PC the owner allowed
+// through the remote door. A request's seat is known only from the port it arrived on; its Host must be the Mac's own
+// address as the PC's browser sends it (127.0.0.1:3200), and a seat with no `allowed` record is refused everything.
+// A change from a seat is refused, its body unread, unless the seat is `desk` and the route is in DESK_MAY.
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -16,6 +20,7 @@ import { createDecisions } from "./decisions.mjs";
 import { HomeError, fail, internalError } from "./errors.mjs";
 import { loadModules } from "./loader.mjs";
 import { createRouter, MAX_ROUTE_BODY } from "./router.mjs";
+import { macOnly, seatFor, seatMayChange, seatMayRead, seatPorts, seatUnknown } from "./seats.mjs";
 import { FILE_RESPONSE, PLACEHOLDER_HTML, parseRangeHeader, resolveStatic, streamFile } from "./static.mjs";
 import { createUnstick } from "./unstick.mjs";
 
@@ -77,7 +82,8 @@ function readIds(file) {
 }
 
 // options: config (from loadConfig), port (0 = any), urls ({ board, gate, bench }; gate may be null),
-// publicDir, moduleDirs (folders holding routes/ inbox/ search/), proveCommand ([cmd, ...args]), log.
+// publicDir, moduleDirs (folders holding routes/ inbox/ search/), proveCommand ([cmd, ...args]), log,
+// seats (true: also listen on the seat ports; false: never; unset: only when the home listens on its own config port).
 export async function createHome(options) {
   const config = options.config;
   const log = options.log || defaultLog;
@@ -180,8 +186,9 @@ export async function createHome(options) {
     req.resume();
   }
 
-  function hostAllowed(hostHeader) {
-    const p = listenPort;
+  // On a seat port the browser is the PC's, which reaches the Mac's home through its own 127.0.0.1:<home port>.
+  function hostAllowed(hostHeader, onSeat) {
+    const p = onSeat ? config.ports.home : listenPort;
     return hostHeader === `127.0.0.1:${p}` || hostHeader === `localhost:${p}`;
   }
 
@@ -196,18 +203,25 @@ export async function createHome(options) {
     return true;
   }
 
-  async function handle(req, res) {
+  // onSeat: the request came in on one of the seat listeners; which seat comes from its local port alone.
+  async function handle(req, res, onSeat = false) {
     const raw = req.url || "/";
     if (!raw.startsWith("/")) return sendError(res, new HomeError(400, "The home screen could not read this address.", "Open the home screen again.", "bad_path"));
     const qAt = raw.indexOf("?");
     const pathname = qAt === -1 ? raw : raw.slice(0, qAt);
     const qs = qAt === -1 ? "" : raw.slice(qAt + 1);
 
-    if (!hostAllowed(req.headers.host)) {
+    if (!hostAllowed(req.headers.host, onSeat)) {
       return sendError(res, new HomeError(421, "This address is not the home screen.",
-        `Open http://127.0.0.1:${listenPort} instead.`, "wrong_host"), { connection: "close" });
+        `Open http://127.0.0.1:${onSeat ? config.ports.home : listenPort} instead.`, "wrong_host"), { connection: "close" });
     }
     const method = req.method;
+    let seat = null;
+    if (onSeat) {
+      const found = seatFor(req.socket.localPort, config);
+      if (!found || !found.role) return SAFE_METHODS.has(method) ? sendError(res, seatUnknown()) : refuseUnread(req, res, seatUnknown());
+      seat = { n: found.n, role: found.role };
+    }
     if (!SAFE_METHODS.has(method) && !sameOrigin(req)) {
       // Its body is never read: dropped as it comes, then answered (refuseUnread), so a large one still sees the 403.
       return refuseUnread(req, res, new HomeError(403, "This request did not come from the home screen, so it was refused.",
@@ -217,6 +231,16 @@ export async function createHome(options) {
     // The route is found before any body is read: an unknown address is answered 404 at once.
     const notFound = () => new HomeError(404, "There is nothing here.", "Go back to the inbox.", "not_found");
     const isApi = pathname === "/healthz" || pathname.startsWith("/api/");
+    if (seat) {
+      // A seat's change is refused before its body is read, and before an unknown address is answered 404.
+      const sm = isApi ? router.match(method, pathname) : null;
+      const route = sm && sm.handler ? `${method} ${sm.pattern}` : null;
+      if (!SAFE_METHODS.has(method)) {
+        if (!seatMayChange(seat, route)) return refuseUnread(req, res, macOnly());
+      } else if (!seatMayRead(seat, route)) {
+        return sendError(res, macOnly());
+      }
+    }
     if (!isApi) {
       if (!SAFE_METHODS.has(method)) return refuseUnread(req, res, notFound());
       const found = await resolveStatic(publicDir, pathname);
@@ -271,7 +295,7 @@ export async function createHome(options) {
 
     // One byte range, parsed here (null when there is none or it is not one plain range); the raw header is never passed on.
     const range = parseRangeHeader(req.headers.range);
-    const ctx = { params: m.params, query, body, range, config, board, bench, decisions, ids, log, fail, home };
+    const ctx = { params: m.params, query, body, range, config, board, bench, decisions, ids, log, fail, home, seat };
     try {
       const out = await m.handler(ctx);
       if (out && typeof out === "object" && typeof out.status === "number" && "body" in out) return send(res, out.status, out.body, seeOther(out));
@@ -287,24 +311,49 @@ export async function createHome(options) {
     }
   }
 
-  const server = http.createServer((req, res) => {
-    handle(req, res).catch((e) => {
-      log(`request failed: ${String(e?.message || e).split("\n")[0]}`);
-      if (!res.headersSent) sendError(res, internalError());
-      else res.destroy();
+  function makeServer(onSeat) {
+    const s = http.createServer((req, res) => {
+      handle(req, res, onSeat).catch((e) => {
+        log(`request failed: ${String(e?.message || e).split("\n")[0]}`);
+        if (!res.headersSent) sendError(res, internalError());
+        else res.destroy();
+      });
     });
-  });
-  server.headersTimeout = 20000;
-  server.requestTimeout = 60000;
-  // Headers over Node's limit (huge cookies a page left for 127.0.0.1) are answered 431 with the cookies cleared (T58d).
-  server.on("clientError", headerOverflow);
+    s.headersTimeout = 20000;
+    s.requestTimeout = 60000;
+    // Headers over Node's limit (huge cookies a page left for 127.0.0.1) are answered 431 with the cookies cleared (T58d).
+    s.on("clientError", headerOverflow);
+    return s;
+  }
+  const server = makeServer(false);
+  const seatServers = [];
+
+  // One listener per seat port, on 127.0.0.1 only. A port that will not open is logged and left closed: the
+  // Mac's own port is never held back by a seat's.
+  async function listenSeats() {
+    for (const { n, port } of seatPorts(config)) {
+      if (port === listenPort) continue;
+      const s = makeServer(true);
+      try {
+        await new Promise((resolve, reject) => {
+          s.once("error", reject);
+          s.listen(port, "127.0.0.1", () => { s.off("error", reject); resolve(); });
+        });
+      } catch (e) {
+        log(`seat ${n}: port ${port} could not open (${e?.code || "error"})`);
+        continue;
+      }
+      if (s.address()?.address !== "127.0.0.1") { s.close(); log(`seat ${n}: port ${port} was not on 127.0.0.1, so it was closed`); continue; }
+      seatServers.push(s);
+    }
+  }
 
   return {
-    server, home, config,
+    server, home, config, seatServers,
     get port() { return listenPort; },
     get url() { return `http://127.0.0.1:${listenPort}`; },
-    listen(port = options.port ?? config.ports.home) {
-      return new Promise((resolve, reject) => {
+    async listen(port = options.port ?? config.ports.home) {
+      await new Promise((resolve, reject) => {
         server.once("error", reject);
         server.listen(port, "127.0.0.1", () => {
           server.off("error", reject);
@@ -312,10 +361,13 @@ export async function createHome(options) {
           resolve(listenPort);
         });
       });
+      if (options.seats ?? (port === config.ports.home)) await listenSeats();
+      return listenPort;
     },
     close() {
       unstick.stop();
-      return new Promise((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()); });
+      const shut = (s) => new Promise((resolve) => { s.closeAllConnections?.(); s.close(() => resolve()); });
+      return Promise.all([shut(server), ...seatServers.splice(0).map(shut)]).then(() => undefined);
     },
   };
 }

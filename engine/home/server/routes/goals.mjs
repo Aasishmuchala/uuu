@@ -4,6 +4,7 @@ import { join, sep } from "node:path";
 import { brainOn, buildNotes } from "../brain/notes.mjs";
 import { loadCatalogue } from "../lib/jobs.mjs";
 import { ownerText } from "../lib/owner-text.mjs";
+import { macOnly, seatNoteRefused } from "../lib/seats.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
@@ -148,6 +149,8 @@ export default function register(app) {
 
   app.post("/api/goals/:id/note", async (ctx) => {
     const text = readText(ctx);
+    // From a second PC, a note may not be one of the owner's priced orders (lib/seats.mjs, REVIEW-DESKTOP M1).
+    if (seatNoteRefused(ctx.seat || null, text)) throw macOnly();
     const ids = needIds(ctx);
     const { goal } = await findGoal(ctx, ids, ctx.params.id);
     const path = `/api/issues/${encodeURIComponent(goal.id)}`;

@@ -4,6 +4,7 @@
 // two quiet links when the page gave them, the Queue button (Q) and "Search or jump to" (⌘K). Below 860 px it
 // is a back button and the last two crumbs. A page's one-line note (the money line) sits before the Queue button, or
 // first in the Menu sheet below 860 px. The Menu sheet (the tab bar's More) is here too.
+// On a second PC (a seat through the remote door, PLAN-DESKTOP T7) the bar shows one fixed line, from the shell's `seat`.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { Drawer, Icon, Kbd } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
@@ -23,6 +24,13 @@ export function engineDot(engine) {
   if (engine.gate === "off") return { tone: "bad", words: "the gate is off" };
   if (engine.books === "off") return { tone: "warn", words: "the books are off" };
   return { tone: "ok", words: "everything is on" };
+}
+
+// The fixed line a second PC shows (the shell's `seat` is set only on a seat's port), else null.
+export const SEAT_LINE = "You are on a second PC. Keys, switches and money stay on the Mac.";
+export function seatLine(shell) {
+  const s = shell?.seat;
+  return s && typeof s === "object" && Number.isInteger(s.n) ? SEAT_LINE : null;
 }
 
 // The name of Needs you (the sidebar's row, the Queue button, the phone's tab) for a screen reader.
@@ -147,6 +155,7 @@ export function Topbar({ routeId, parts, shell, top, narrow: shellNarrow, side =
   const narrow = useWindowNarrow() || !!shellNarrow;
   const needs = Math.max(0, Math.floor(Number(shell?.counts?.needsYou) || 0));
   const crumbs = top?.crumbs || defaultCrumbs(routeId, parts);
+  const seat = seatLine(shell);
 
   if (narrow) {
     const shown = crumbs.slice(-2);
@@ -171,6 +180,7 @@ export function Topbar({ routeId, parts, shell, top, narrow: shellNarrow, side =
       </button>
       <${Crumbs} list=${crumbs} />
       <span class="s-top-gap"></span>
+      ${seat ? html`<span class="s-top-note s-top-seat" role="note">${seat}</span>` : null}
       ${top?.pager ? html`<${Pager} pager=${top.pager} />` : null}
       ${(top?.links || []).map((l) => html`<a key=${l.href} class="s-top-link" href=${l.href}>${l.label}</a>`)}
       ${top?.note ? html`<span class="s-top-note u-num">${top.note}</span>` : null}
@@ -199,12 +209,14 @@ export function MenuSheet({ open, onClose, shell, dock, note, settings, onSaveSe
   const dot = engineDot(shell?.engine);
   const to = switchedTheme(settings?.theme, systemDark());
   const themeWords = to === "light" ? "Switch to light" : "Switch to dark";
+  const seat = seatLine(shell);
   const link = (href, icon, words, extra) => html`
     <li><a class="s-sheet-item" href=${href} onClick=${onClose}><${Icon} name=${icon} size=${20} /><span>${words}</span>${extra || null}</a></li>`;
   return html`
     <${Drawer} open=${open} side="right" title="More" onClose=${onClose}>
       <div class="s-sheet">
         ${note ? html`<p class="s-sheet-note u-num">${note}</p>` : null}
+        ${seat ? html`<p class="s-sheet-note s-sheet-seat" role="note">${seat}</p>` : null}
         <ul class="s-sheet-list">
           <li><button type="button" class="s-sheet-item" onClick=${onCompose}><${Icon} name="plus" size=${20} /><span>New task</span></button></li>
           <li><button type="button" class="s-sheet-item" onClick=${onCommand}><${Icon} name="search" size=${20} /><span>Search</span><${Kbd}>${commandKey()}<//></button></li>

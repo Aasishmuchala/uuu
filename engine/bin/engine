@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The one command that runs the company engine.
-#   engine start | stop | status | prove | setup | test | help
+#   engine start | stop | status | prove | setup | test | remote <word> | help
 # Each part of the engine is a script in engine/parts/ (ENGINE_PARTS_DIR
 # replaces that folder for tests). Everything printed here is for the owner:
 # plain sentences, and what to do next.
@@ -17,6 +17,7 @@ Usage: engine <command>
   prove    Check that the fence around the agents holds.
   setup    Apply the company file to the board and wire up the books.
   test     Run every test.
+  remote   The remote door for Windows PCs, from this Terminal only: engine remote help.
   help     Show this list.
 EOF
 }
@@ -35,7 +36,7 @@ REPO_DIR="$(dirname "$ENGINE_DIR")"
 
 cmd="${1:-}"
 case "$cmd" in
-  start|stop|status|prove|setup|test) ;;
+  start|stop|status|prove|setup|test|remote) ;;
   help|-h|--help) usage; exit 0 ;;
   *) usage >&2; exit 64 ;;
 esac
@@ -48,13 +49,26 @@ fi
 NODE="$CFG_NODE24/bin/node"
 PARTS_DIR="${ENGINE_PARTS_DIR:-$ENGINE_DIR/parts}"
 
+# The remote door's commands (PLAN-DESKTOP DW5): they ask for a terminal and a typed yes themselves.
+if [ "$cmd" = remote ]; then
+  shift
+  exec "$NODE" "$ENGINE_DIR/remote/remote.mjs" "$@"
+fi
+
 # ---- parts ---------------------------------------------------------------
 
-# Part scripts, in name order. A part is a file named NN-<id>.sh.
+# Part scripts, in name order. A part is a file named NN-<id>.sh. The remote door is not one of the
+# list: it runs only when the owner switched it on (its marker), and is started last and stopped first.
 PARTS=()
+REMOTE_PART=""
 for f in "$PARTS_DIR"/[0-9]*.sh; do
-  [ -f "$f" ] && PARTS+=("$f")
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in
+    [0-9][0-9]-remote.sh) REMOTE_PART="$f" ;;
+    *) PARTS+=("$f") ;;
+  esac
 done
+REMOTE_MARKER="$CFG_STATE/remote/on"
 
 part_id() { local b; b="$(basename "$1" .sh)"; printf '%s\n' "${b#[0-9][0-9]-}"; }
 
@@ -143,6 +157,7 @@ do_start() {
     fi
     [ "$(part_id "$f")" = home ] && home_ok=1
   done
+  remote_start
   if [ "$skipped" = 0 ]; then
     echo "Everything is on. Open $CFG_HOME_URL"
   elif [ "$home_ok" = 1 ]; then
@@ -153,8 +168,47 @@ do_start() {
   exit 0
 }
 
+# The remote door, only when the owner switched it on (engine remote on).
+remote_start() {
+  [ -n "$REMOTE_PART" ] && [ -f "$REMOTE_MARKER" ] || return 0
+  part_installed "$REMOTE_PART" || return 0
+  part_health "$REMOTE_PART"
+  if [ "$STATE" = on ]; then
+    echo "Remote door is already on."
+    return 0
+  fi
+  echo "Starting remote door..."
+  run_part "$REMOTE_PART" start
+  local start_code="$CODE" start_out="$OUT"
+  part_health "$REMOTE_PART"
+  if [ "$start_code" != 0 ] || [ "$STATE" != on ]; then
+    echo "Remote door did not come up: $(printf '%s\n' "$start_out" | tail -1)"
+    echo "Check $(part_log "$REMOTE_PART"). Then run: engine start"
+    exit 1
+  fi
+}
+
+# Stops the remote door whether or not its marker is there; says nothing when it was not running.
+remote_stop() {
+  [ -n "$REMOTE_PART" ] || return 0
+  part_installed "$REMOTE_PART" || return 0
+  part_health "$REMOTE_PART"
+  [ "$STATE" = off ] && return 0
+  run_part "$REMOTE_PART" stop
+  local stop_code="$CODE" stop_out="$OUT"
+  part_health "$REMOTE_PART"
+  if [ "$stop_code" = 0 ] && [ "$STATE" = off ]; then
+    echo "Stopped remote door."
+    return 0
+  fi
+  echo "Remote door did not stop: ${stop_out:-$SENTENCE}"
+  echo "Check $(part_log "$REMOTE_PART"). Then run: engine stop"
+  return 1
+}
+
 do_stop() {
   local i f name was all_off=1
+  remote_stop || all_off=0
   i=${#PARTS[@]}
   while [ "$i" -gt 0 ]; do
     i=$((i - 1))
@@ -196,6 +250,13 @@ do_status() {
     printf '%-13s %-14s %s\n' "$name" "$STATE" "$SENTENCE"
     if [ "$STATE" != on ]; then attention="${attention:+$attention, }$name"; fi
   done
+  if [ -n "$REMOTE_PART" ] && part_installed "$REMOTE_PART"; then
+    "$NODE" "$ENGINE_DIR/remote/remote.mjs" status </dev/null 2>>"$(part_log "$REMOTE_PART")" | head -1 || true
+    if [ -f "$REMOTE_MARKER" ]; then
+      part_health "$REMOTE_PART"
+      if [ "$STATE" != on ]; then attention="${attention:+$attention, }Remote door"; fi
+    fi
+  fi
   if [ -z "$attention" ]; then
     echo "Everything is on."
     exit 0

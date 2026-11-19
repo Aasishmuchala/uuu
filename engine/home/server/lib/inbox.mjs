@@ -15,6 +15,7 @@
 // changed may be the money. While it offers `approve` it waits for the owner as a staged plan does.
 import { createHash } from "node:crypto";
 import { HomeError } from "./errors.mjs";
+import { inboxSeatMay, macOnly, seatNoteRefused } from "./seats.mjs";
 
 // A version from the texts an item shows: the first 16 hex characters of a SHA-256 over them.
 export function versionOf(...parts) {
@@ -199,7 +200,11 @@ export function createActor(sources) {
     }
     const spec = (item.actions || []).find((a) => a.id === action);
     if (!spec) throw new HomeError(400, "That action is not offered for this item.", "Refresh the inbox and pick one of the buttons shown.", "bad_action");
+    // A seat (a second PC, PLAN-DESKTOP T7) may take only the actions lib/seats.mjs lists for its source: nothing priced.
+    if (!inboxSeatMay(ctx.seat || null, owners.get(id)?.id, item, action)) throw macOnly();
     const text = typeof note === "string" ? note.trim() : "";
+    // Nor may its note be one of the owner's priced orders, whichever action carries it (REVIEW-DESKTOP M1).
+    if (seatNoteRefused(ctx.seat || null, text)) throw macOnly();
     if (spec.needsNote && !text) {
       throw new HomeError(400, "This needs a short note.", "Write what should change, then send it.", "needs_note");
     }
