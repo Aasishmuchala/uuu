@@ -58,11 +58,11 @@ test("the shell reads /api/shell on the visible beat, not while hidden, and once
   document.removeEventListener = (t, f) => { const i = heard.findIndex((h) => h[0] === t && h[1] === f); if (i >= 0) heard.splice(i, 1); };
   const real = globalThis.fetch;
   let reads = 0;
+  const root = new FakeElement("div");
   globalThis.fetch = async () => { reads += 1; return { ok: true, status: 200, json: async () => ({ counts: {} }) }; };
   try {
     const { useResource } = await load("lib/api.js");
     function Probe() { useResource("/api/shell", { every: 60 }); return null; }
-    const root = new FakeElement("div");
     document.visibilityState = "visible";
     render(html`<${Probe} />`, root);
     await settle(400);
@@ -74,10 +74,10 @@ test("the shell reads /api/shell on the visible beat, not while hidden, and once
     assert.equal(reads, at, "a hidden page is not read");
     document.visibilityState = "visible";
     for (const [t, f] of heard.slice()) if (t === "visibilitychange") f();
-    await settle(30);
+    // The read starts in the same turn (a beat tick is a separate turn), so nothing is waited for before counting.
     assert.equal(reads, at + 1, "seen again: one read at once");
-    render(null, root);
   } finally {
+    render(null, root);
     globalThis.fetch = real;
   }
   const src = read("shell/app-shell.js");
