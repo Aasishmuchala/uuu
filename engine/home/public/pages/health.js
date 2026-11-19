@@ -258,7 +258,7 @@ export default function Page() {
   const [technical, setTechnical] = useState(false);
   const [started, setStarted] = useState(false);
   const [runError, setRunError] = useState(null);
-  const res = useResource("/api/health", { every: 10000 });
+  const res = useResource("/api/health", { every: 3000 });
   const d = res.data;
   const jobsRes = useResource("/api/jobs", { every: 10000 });
   const waiting = waitingFor(jobsRes.data);

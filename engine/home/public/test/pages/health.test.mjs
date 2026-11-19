@@ -295,3 +295,10 @@ test("health: a part that is On has a lamp in the good (green) tone in both them
   assert.ok((tokens.match(/^\s*--good:/gm) || []).length >= 2, "the dark and the light theme each give --good");
   assert.equal(H.lampOfPart("on"), "on");
 });
+
+test("health: the page reads /api/health every 3 s so a killed part is said within 5 s, and /api/jobs every 10 s (stress S-recovery-b73451b0)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
+  assert.match(src, /useResource\("\/api\/health", \{ every: 3000 \}\)/);
+  assert.match(src, /useResource\("\/api\/jobs", \{ every: 10000 \}\)/);
+});
