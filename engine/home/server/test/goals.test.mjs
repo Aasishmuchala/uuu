@@ -8,6 +8,7 @@ import { boardSeed, IDS } from "../../../test/stubs/seed.mjs";
 import { call, writes } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 import { titleOf } from "../routes/goals.mjs";
+import { loadIssues } from "../lib/goals.mjs";
 
 // The goal routes on the version 1 board seed (STH-1 to STH-6), so the counts pinned below stay as they were.
 async function withHome(fn, opts = {}) {
@@ -263,4 +264,14 @@ test("a new task's title is cut at a word with an ellipsis, only when cut", () =
   assert.ok(t.length <= 80);
   assert.equal(titleOf("Short one\nsecond line"), "Short one");
   assert.equal(titleOf("x".repeat(100)), `${"x".repeat(79)}…`);
+});
+
+test("loadIssues: an answer that is not a list is a 502 board_bad_answer, not no tasks (stress S-faults-ea423827)", async () => {
+  const ctxOf = (answer) => ({ board: { get: async () => answer } });
+  assert.deepEqual(await loadIssues(ctxOf([{ id: "a" }]), "c1"), [{ id: "a" }]);
+  assert.deepEqual(await loadIssues(ctxOf([]), "c1"), []);
+  for (const bad of [{}, null, "x", 5, { issues: [] }]) {
+    await assert.rejects(() => loadIssues(ctxOf(bad), "c1"), (e) => e.status === 502 && e.code === "board_bad_answer"
+      && e.message === "The board gave an answer the home screen could not read.", JSON.stringify(bad));
+  }
 });

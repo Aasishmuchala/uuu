@@ -25,7 +25,11 @@ export function needIds(ctx) {
 // Every task of the company (the board's own cap is 1000).
 export async function loadIssues(ctx, companyId) {
   const list = await ctx.board.get(`/api/companies/${encodeURIComponent(companyId)}/issues?limit=1000`);
-  return Array.isArray(list) ? list : [];
+  if (!Array.isArray(list)) {
+    throw new HomeError(502, "The board gave an answer the home screen could not read.",
+      "Try again in a minute. If it keeps happening, look at Health.", "board_bad_answer");
+  }
+  return list;
 }
 
 export function isGoal(issue, ids) {
