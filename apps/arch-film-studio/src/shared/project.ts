@@ -447,13 +447,35 @@ export function mediaUrl(key: string): string {
 
 /**
  * Where the browser loads a generated result: the app's stored copy, or
- * nothing while the job has not been kept yet.
+ * nothing while the job has not been kept yet. `download` asks to save it:
+ * `true` under the stored name, a string under that readable name
+ * (src/server/files.ts cleans it and keeps the file's own ending).
  */
 export function outputUrl(
   run: { storedKey?: string | undefined },
-  download = false
+  download: boolean | string = false
 ): string | undefined {
-  return run.storedKey ? mediaUrl(run.storedKey) + (download ? '?download' : '') : undefined;
+  return run.storedKey ? downloadUrl(mediaUrl(run.storedKey), download) : undefined;
+}
+
+/** The film's file name: the project's name, then the film's title when it says more. */
+export function filmFileName(projectName: string, title?: string | undefined): string {
+  const p = projectName.trim();
+  const t = (title ?? '').trim();
+  if (!t || t.toLowerCase() === p.toLowerCase()) return p ? `${p} film` : 'Film';
+  return p ? `${p} - ${t}` : t;
+}
+
+/** A master's file name: the project, the picture's code and its own name when it has one. */
+export function masterFileName(projectName: string, image: { code: string; name?: string | undefined }): string {
+  const name = (image.name ?? '').trim().replace(/\.[A-Za-z0-9]{1,5}$/, '');
+  return [projectName.trim(), image.code, name && name !== image.code ? name : '', 'master'].filter(Boolean).join(' ');
+}
+
+/** `url` asking to be saved: `?download`, with `=<name>` when a readable name is given. */
+export function downloadUrl(url: string, download: boolean | string = true): string {
+  if (download === false) return url;
+  return typeof download === 'string' && download.trim() ? `${url}?download=${encodeURIComponent(download.trim())}` : `${url}?download`;
 }
 
 export function latestEnhancement(image: ProjectImage): EnhancementRun | undefined {

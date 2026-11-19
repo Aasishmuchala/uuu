@@ -1,7 +1,7 @@
 import { Maximize } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { approvedEnhancement, mediaUrl, outputUrl, type Project, type ProjectImage } from '../../shared/project.ts';
+import { approvedEnhancement, masterFileName, mediaUrl, outputUrl, type Project, type ProjectImage } from '../../shared/project.ts';
 import { masterNote } from '../../server/models.ts';
 import { Button } from '../kit.ts';
 import { pictureState, wantsMaster } from '../lib/progress.ts';
@@ -96,7 +96,7 @@ export function Masters({ project, focus }: { project: Project; focus?: string |
       state: pictureState(image),
       working: w.busy ? { words: `Master: ${w.words}`, progress: m?.progress, since: m ? Date.parse(m.createdAt) : undefined } : null,
       error: w.error,
-      end: m?.locked && m.storedKey ? <DownloadLink compact href={outputUrl(m, true)!} name={`${image.code} master`} /> : undefined,
+      end: m?.locked && m.storedKey ? <DownloadLink compact href={outputUrl(m, masterFileName(project.name, image))!} name={`${image.code} master`} /> : undefined,
     };
   });
 

@@ -9,7 +9,7 @@ import type Koa from 'koa';
 
 import { defaultSettings, imageKeys, type ProjectImage } from '../shared/project.ts';
 import { store } from '../storage.ts';
-import { filesRoute } from './files.ts';
+import { attachmentName, filesRoute } from './files.ts';
 import { createProject, getProject, updateProject } from './store.ts';
 import {
   acceptUpload,
@@ -176,6 +176,21 @@ describe('/files/', () => {
     await route(dl.ctx, next);
     assert.equal(dl.headers['Content-Disposition'], 'attachment; filename="a.png"');
     await body(dl.raw.body);
+  });
+
+  test('saves under the readable name the page asks for, cleaned, with the file’s own ending', async () => {
+    await store.putObject('media/2805ac93-3227-4166-9494-6fa8ae190ca2.mp4', Buffer.from('film'));
+    for (const [asked, name] of [
+      ['East garden film - Stone and water', 'East garden film - Stone and water.mp4'],
+      ['Café "nord" / scène.mov', 'Cafe nord scene.mp4'],
+      ['"/\\', '2805ac93-3227-4166-9494-6fa8ae190ca2.mp4'],
+    ]) {
+      const dl = fakeCtx('/files/media/2805ac93-3227-4166-9494-6fa8ae190ca2.mp4', { download: asked! });
+      await route(dl.ctx, next);
+      assert.equal(dl.headers['Content-Disposition'], `attachment; filename="${name}"`, asked);
+      await body(dl.raw.body);
+    }
+    assert.equal(attachmentName('x'.repeat(200), 'media/a.png'), `${'x'.repeat(80)}.png`);
   });
 
   test('refuses ../ and an unknown ending', async () => {

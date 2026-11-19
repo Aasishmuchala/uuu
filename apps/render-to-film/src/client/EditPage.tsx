@@ -597,9 +597,11 @@ export function EditPage({ onGoToVideo, active }: EditPageProps) {
           onClick={redo}
         />
         <span className={styles.divider} aria-hidden />
-        <Text type="supporting">
-          {anyPending ? 'A cut is still re-rendering; export once it is done.' : 'Exporting runs on this Mac.'}
-        </Text>
+        <span className={styles.exportNote}>
+          <Text type="supporting">
+            {anyPending ? 'A cut is still re-rendering; export once it is done.' : 'Exporting runs on this Mac.'}
+          </Text>
+        </span>
         <Button
           label={latestExport?.status === 'pending' ? 'Exporting…' : 'Export film'}
           variant="primary"

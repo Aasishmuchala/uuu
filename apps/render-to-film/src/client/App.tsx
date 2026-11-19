@@ -203,19 +203,29 @@ export function App() {
   const topBar = (
     <div className={styles.top}>
       <nav className={styles.crumbs} aria-label="Where you are">
-        <Text type="supporting">{current.group}</Text>
-        <span className={styles.slash} aria-hidden>
-          /
+        <span className={styles.group}>
+          <Text type="supporting">{current.group}</Text>
+          <span className={styles.slash} aria-hidden>
+            /
+          </span>
         </span>
-        <Text type="label">{current.name}</Text>
+        <Text type="label" maxLines={1}>
+          {current.name}
+        </Text>
       </nav>
       <div className={styles.topEnd}>
-        <button type="button" className={styles.jump} onClick={() => setPalette(true)} aria-keyshortcuts="Meta+K">
+        <button type="button" className={styles.jump} onClick={() => setPalette(true)} aria-keyshortcuts="Meta+K" aria-label="Jump to">
           <Search size={14} aria-hidden />
-          <span>Jump to</span>
-          <Kbd keys="mod+k" />
+          <span className={styles.jumpWords} aria-hidden>
+            Jump to
+          </span>
+          <span className={styles.jumpKeys} aria-hidden>
+            <Kbd keys="mod+k" />
+          </span>
         </button>
-        <Button label="Shortcuts" variant="ghost" size="sm" onClick={() => setShortcuts(true)} tooltip="Every key in one place (?)" />
+        <span className={styles.shortcuts}>
+          <Button label="Shortcuts" variant="ghost" size="sm" onClick={() => setShortcuts(true)} tooltip="Every key in one place (?)" />
+        </span>
         <SpendingChip />
       </div>
     </div>
