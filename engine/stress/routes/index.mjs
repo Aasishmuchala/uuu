@@ -77,7 +77,7 @@ export default async function routesSweep(ctx) {
   const table = listRoutes(st);
   const count = { GET: 0, POST: 0, DELETE: 0 };
   for (const r of table.routes) count[r.method] = (count[r.method] || 0) + 1;
-  writeFileSync(join(ctx.passDir, "routes.json"), `${JSON.stringify({ at: new Date().toISOString(), how: table.how, count: table.routes.length, byMethod: count, failed: table.failed, routes: table.routes }, null, 2)}\n`);
+  if (!ctx.only) writeFileSync(join(ctx.passDir, "routes.json"), `${JSON.stringify({ at: new Date().toISOString(), how: table.how, count: table.routes.length, byMethod: count, failed: table.failed, routes: table.routes }, null, 2)}\n`);
   ctx.log(`route table (${table.how}): ${table.routes.length} routes, ${JSON.stringify(count)}${table.failed.length ? `, ${table.failed.length} modules failed` : ""}`);
   if (table.routes.length < MIN_ROUTES) throw new Error(`only ${table.routes.length} routes found (at least ${MIN_ROUTES} expected); the table is wrong`);
 
@@ -173,7 +173,8 @@ export default async function routesSweep(ctx) {
     outsideCalls: { known: outside.length - unknown.length, other: unknown.length },
     parts: env.partsTable || null, p95ByRoute,
   };
-  writeFileSync(join(ctx.passDir, "routes-summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
+  // A run of one finding (--only) leaves the pass's own summary alone.
+  writeFileSync(join(ctx.passDir, ctx.only ? "routes-summary.only.json" : "routes-summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
   ctx.log(`${routes.length} routes swept, ${stats.calls} calls, ${stats.fiveXX} answers 5xx, ${stats.hangs} hangs, ${env.worked.size} valid bodies taken 2xx, ${summary.seconds} s`);
   if (env.skipped.length) ctx.log(`not called: ${env.skipped.map((s) => `${s.route} (${s.why})`).join("; ")}`);
 }
