@@ -53,7 +53,12 @@ export const WHY = {
 // ---- the catalogue, cached until a file in jobs/ (or the departments or roles) changes
 let catalogueCache = { key: null, value: null };
 
+let folderReads = 0;
+// How many times the job folder was read for its key (for the test of the once-a-second rule).
+export const jobFolderReads = () => folderReads;
+
 function jobsKey(dir) {
+  folderReads += 1;
   const parts = [dir];
   let folders = [];
   try { folders = readdirSync(dir).sort(); } catch { return `${dir}|none`; }
@@ -68,13 +73,41 @@ function jobsKey(dir) {
   return parts.join("|");
 }
 
+// The catalogue (and the job folder's key under it) is read again at most once a second (stress pass 3, GET /api/jobs
+// p95 3.3 s at 20 at once): a page of jobs asks for the catalogue once per job (craftOf), and each read stats every
+// job, role and department file, thousands of calls a request. A file changed on disk is still seen within a second;
+// these files change only with the code.
+export const KEY_TTL_MS = 1000;
+const keyMemo = new Map(); // dir -> { at, key }
+function jobsKeyNow(dir) {
+  const now = Date.now();
+  const m = keyMemo.get(dir);
+  if (m && now - m.at >= 0 && now - m.at < KEY_TTL_MS) return m.key;
+  const key = jobsKey(dir);
+  keyMemo.set(dir, { at: now, key });
+  if (keyMemo.size > 32) keyMemo.delete(keyMemo.keys().next().value);
+  return key;
+}
+
 // loadCatalogue(config) -> { jobs: Map("<department>/<id>" -> job file), byDepartment: Map(department id ->
 // [job file]), problems: [{ file, problem }] }. A broken job is left out and listed under problems.
+const catalogueMemo = new Map(); // "<engine dir>|<state>" -> { at, value }: the whole answer, for a second
 export function loadCatalogue(config) {
+  const memoKey = `${config.engineDir}|${config.paths && config.paths.state}`;
+  const now = Date.now();
+  const memo = catalogueMemo.get(memoKey);
+  if (memo && now - memo.at >= 0 && now - memo.at < KEY_TTL_MS) return memo.value;
+  const value = readCatalogue(config);
+  catalogueMemo.set(memoKey, { at: now, value });
+  if (catalogueMemo.size > 32) catalogueMemo.delete(catalogueMemo.keys().next().value);
+  return value;
+}
+
+function readCatalogue(config) {
   const roles = loadRoles(config, { log: () => {} });
   const deps = loadDepartments(config);
   const dir = join(config.engineDir, "company", "jobs");
-  const key = jobsKey(dir);
+  const key = jobsKeyNow(dir);
   if (catalogueCache.value && catalogueCache.key === key && catalogueCache.roles === roles && catalogueCache.deps === deps) return catalogueCache.value;
   let loaded;
   try {
@@ -483,9 +516,10 @@ function takesOf(job, runs, catalogueJobs) {
 // jobView(job, { needs, runs, config, roles }) -> shape `job` (33.3). `runs` is runsIndex's Map (or this
 // job's own entry); `needs` is needsState's answer. `craft` is null for a job with no craft entry (K9);
 // `generation` (moneyOf, C9) is null for every job that does not need the generation door.
-export function jobView(job, { needs, runs, config, roles } = {}) {
+// `departments` (optional): the list a caller already read for a page of jobs, so each job does not read it again.
+export function jobView(job, { needs, runs, config, roles, departments } = {}) {
   const ref = jobRef(job);
-  const deps = loadDepartments(config).departments;
+  const deps = Array.isArray(departments) ? departments : loadDepartments(config).departments;
   const dep = deps.find((d) => d.id === job.department);
   const cluster = dep?.clusters.find((c) => c.id === job.cluster);
   const allRoles = Array.isArray(roles) ? roles : loadRoles(config, { log: () => {} });

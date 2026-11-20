@@ -12,7 +12,7 @@ import { createBoard } from "../lib/board.mjs";
 import { createDecisions } from "../lib/decisions.mjs";
 import { basics, BASICS, brainFiles, brainFileState, brainTitle, brainToken, roomFiles } from "../lib/brainfiles.mjs";
 import { departmentLoad, departmentOf, loadDepartments } from "../lib/departments.mjs";
-import { forgetNeeds, jobView, loadCatalogue, needsState, readiness, runsIndex } from "../lib/jobs.mjs";
+import { craftOf, forgetNeeds, jobFolderReads, jobView, KEY_TTL_MS, loadCatalogue, needsState, readiness, runsIndex } from "../lib/jobs.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { findTask, forgetComments, loadTaskContext, outcomeOf, taskCard } from "../lib/tasks.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
@@ -107,6 +107,29 @@ test("loadCatalogue: a broken job file is left out and listed; the others stay",
     assert.ok(!c.jobs.has("sales/broken"));
     assert.ok(c.problems.length >= 1);
     assert.ok(c.problems.every((p) => p.file === "sales/broken.json" && typeof p.problem === "string" && p.problem.endsWith(".")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Stress pass 3: GET /api/jobs read the job folder once per job (craftOf -> loadCatalogue -> a stat of every job
+// file), about 5,800 file-system calls a request, p95 3.3 s at 20 at once. The folder is now read at most once a
+// second per folder; a changed file is still seen after that second.
+test("loadCatalogue: the job folder is read at most once a second, and a change is seen after it", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-engine-"));
+  try {
+    cpSync(join(h.config.engineDir, "company"), join(dir, "company"), { recursive: true, filter: (p) => !p.includes(`${join("company", "test")}`) });
+    const cfg = { ...h.config, engineDir: dir };
+    const before = jobFolderReads();
+    const first = loadCatalogue(cfg);
+    for (const job of first.jobs.values()) craftOf(cfg, job);
+    for (let i = 0; i < 200; i += 1) loadCatalogue(cfg);
+    assert.equal(jobFolderReads() - before, 1, "one read of the folder for 273 catalogue asks inside a second");
+    writeFileSync(join(dir, "company", "jobs", "sales", "broken.json"), JSON.stringify({ id: "broken" }));
+    await new Promise((r) => setTimeout(r, KEY_TTL_MS + 50));
+    const later = loadCatalogue(cfg);
+    assert.notEqual(later, first, "a job file added is seen once the second has passed");
+    assert.ok(later.problems.some((p) => p.file === "sales/broken.json"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

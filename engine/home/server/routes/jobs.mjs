@@ -335,7 +335,7 @@ export default function register(app) {
     const runs = tctx ? runsIndex(ctx, tctx) : new Map();
     const views = [];
     const out = departments.map((d) => {
-      const own = (catalogue.byDepartment.get(d.id) || []).map((job) => jobView(job, { needs, runs, config: ctx.config, roles }));
+      const own = (catalogue.byDepartment.get(d.id) || []).map((job) => jobView(job, { needs, runs, config: ctx.config, roles, departments }));
       views.push(...own);
       return {
         id: d.id, title: d.title,
