@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 700" width="980" height="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>How the parts of the company engine connect</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b4a3a"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #c9b8a3; stroke-width: 1.5; }
+      .hot { fill: #f6e3c8; stroke: #b9752b; stroke-width: 1.5; }
+      .door { fill: #eef3ea; stroke: #6f8f5f; stroke-width: 1.5; }
+      .out { fill: #f1eeea; stroke: #9a8f84; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .agent { fill: #ffffff; stroke: #d08b8b; stroke-width: 1.2; }
+      .t { fill: #2b2118; font-size: 15px; font-weight: 600; }
+      .s { fill: #5b4a3a; font-size: 12px; }
+      .xs { fill: #5b4a3a; font-size: 11px; }
+      .lab { fill: #8a5a1f; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; }
+      .line { stroke: #5b4a3a; stroke-width: 1.5; fill: none; }
+      .dash { stroke: #5b4a3a; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+
+  <!-- solid background so the picture reads in light and dark mode -->
+  <rect width="980" height="700" fill="#fbf8f3"/>
+
+  <!-- This Mac -->
+  <rect x="16" y="16" width="716" height="668" rx="14" fill="#fdfbf7" stroke="#8a7a68" stroke-width="2"/>
+  <text x="34" y="42" class="lab">THIS MAC: keys, money and data stay here</text>
+
+  <!-- Row 1 -->
+  <rect x="34" y="62" width="150" height="62" rx="10" class="box"/>
+  <text x="109" y="88" text-anchor="middle" class="t">You</text>
+  <text x="109" y="107" text-anchor="middle" class="s">browser or Mac app</text>
+
+  <rect x="230" y="56" width="270" height="74" rx="10" class="hot"/>
+  <text x="365" y="82" text-anchor="middle" class="t">Home screen</text>
+  <text x="365" y="100" text-anchor="middle" class="s">Map, Tasks, Needs you, Files, Jobs,</text>
+  <text x="365" y="116" text-anchor="middle" class="s">Settings, Health, App Studio</text>
+
+  <rect x="540" y="62" width="172" height="62" rx="10" class="door"/>
+  <text x="626" y="86" text-anchor="middle" class="t">Remote door</text>
+  <text x="626" y="104" text-anchor="middle" class="xs">off by default,</text>
+  <text x="626" y="117" text-anchor="middle" class="xs">carries a window only</text>
+
+  <line x1="184" y1="93" x2="226" y2="93" class="line" marker-end="url(#a)"/>
+  <line x1="538" y1="93" x2="504" y2="93" class="line" marker-end="url(#a)"/>
+
+  <!-- Row 2: records -->
+  <rect x="34" y="176" width="200" height="66" rx="10" class="box"/>
+  <text x="134" y="202" text-anchor="middle" class="t">Board</text>
+  <text x="134" y="221" text-anchor="middle" class="s">Paperclip: tasks and agents</text>
+
+  <rect x="262" y="176" width="210" height="66" rx="10" class="box"/>
+  <text x="367" y="202" text-anchor="middle" class="t">Books</text>
+  <text x="367" y="221" text-anchor="middle" class="s">Frappe: ERPNext, CRM,</text>
+  <text x="367" y="236" text-anchor="middle" class="xs">Helpdesk, HRMS</text>
+
+  <rect x="500" y="176" width="212" height="66" rx="10" class="box"/>
+  <text x="606" y="202" text-anchor="middle" class="t">Company brain</text>
+  <text x="606" y="221" text-anchor="middle" class="s">your own files; only you write</text>
+
+  <!-- home reads and writes the records -->
+  <path d="M300,130 L170,172" class="line" marker-end="url(#a)"/>
+  <line x1="365" y1="130" x2="365" y2="172" class="line" marker-end="url(#a)"/>
+  <path d="M430,130 L560,172" class="line" marker-end="url(#a)"/>
+
+  <!-- Row 3: the in-between servers -->
+  <rect x="34" y="290" width="200" height="66" rx="10" class="door"/>
+  <text x="134" y="316" text-anchor="middle" class="t">Gate</text>
+  <text x="134" y="334" text-anchor="middle" class="xs">turns away every request</text>
+  <text x="134" y="347" text-anchor="middle" class="xs">an agent has no need to make</text>
+
+  <rect x="262" y="290" width="210" height="66" rx="10" class="door"/>
+  <text x="367" y="316" text-anchor="middle" class="t">Model relay</text>
+  <text x="367" y="334" text-anchor="middle" class="xs">adds the key itself; holds each</text>
+  <text x="367" y="347" text-anchor="middle" class="xs">agent to its picked model</text>
+
+  <rect x="500" y="290" width="212" height="66" rx="10" class="door"/>
+  <text x="606" y="314" text-anchor="middle" class="t">Doors</text>
+  <text x="606" y="332" text-anchor="middle" class="xs">web, generation, page viewer, brain</text>
+  <text x="606" y="347" text-anchor="middle" class="xs">each off until you switch it on</text>
+
+  <line x1="134" y1="288" x2="134" y2="246" class="line" marker-end="url(#a)"/>
+
+  <!-- The fence -->
+  <rect x="34" y="404" width="440" height="262" rx="12" fill="#fff6f4" stroke="#c25b4f" stroke-width="2" stroke-dasharray="8 5"/>
+  <text x="52" y="430" class="lab" fill="#a2453b" style="fill:#a2453b">THE FENCE: AGENTS</text>
+  <text x="52" y="449" class="xs">own task folder only; no keys; no direct board; no open internet</text>
+
+  <g class="s">
+    <rect x="52" y="466" width="128" height="32" rx="16" class="agent"/><text x="116" y="487" text-anchor="middle" class="s">Chief of staff</text>
+    <rect x="190" y="466" width="128" height="32" rx="16" class="agent"/><text x="254" y="487" text-anchor="middle" class="s">Builder</text>
+    <rect x="328" y="466" width="128" height="32" rx="16" class="agent"/><text x="392" y="487" text-anchor="middle" class="s">Checker</text>
+    <rect x="52" y="508" width="128" height="32" rx="16" class="agent"/><text x="116" y="529" text-anchor="middle" class="s">Art director</text>
+    <rect x="190" y="508" width="128" height="32" rx="16" class="agent"/><text x="254" y="529" text-anchor="middle" class="s">Bookkeeper</text>
+    <rect x="328" y="508" width="128" height="32" rx="16" class="agent"/><text x="392" y="529" text-anchor="middle" class="s">Sales</text>
+    <rect x="52" y="550" width="128" height="32" rx="16" class="agent"/><text x="116" y="571" text-anchor="middle" class="s">Support</text>
+    <rect x="190" y="550" width="128" height="32" rx="16" class="agent"/><text x="254" y="571" text-anchor="middle" class="s">People</text>
+    <rect x="328" y="550" width="128" height="32" rx="16" class="agent"/><text x="392" y="571" text-anchor="middle" class="s">Marketer</text>
+    <rect x="52" y="592" width="128" height="32" rx="16" class="agent"/><text x="116" y="613" text-anchor="middle" class="s">Researcher</text>
+    <rect x="190" y="592" width="128" height="32" rx="16" class="agent"/><text x="254" y="613" text-anchor="middle" class="s">Drafter</text>
+    <rect x="328" y="592" width="128" height="32" rx="16" class="agent"/><text x="392" y="613" text-anchor="middle" class="s">Artist</text>
+  </g>
+  <text x="52" y="652" class="xs">The proof (engine prove) checks that the fence holds.</text>
+
+  <!-- agents go out only through gate, relay, doors -->
+  <line x1="134" y1="402" x2="134" y2="360" class="line" marker-end="url(#a)"/>
+  <line x1="367" y1="402" x2="367" y2="360" class="line" marker-end="url(#a)"/>
+  <path d="M474,450 L560,360" class="line" marker-end="url(#a)"/>
+
+  <!-- App Studio -->
+  <rect x="500" y="404" width="212" height="128" rx="12" fill="#fff6f4" stroke="#c25b4f" stroke-width="2" stroke-dasharray="8 5"/>
+  <text x="606" y="428" text-anchor="middle" class="t">App Studio</text>
+  <text x="606" y="447" text-anchor="middle" class="xs">each app's program in its own fence</text>
+  <rect x="516" y="458" width="180" height="28" rx="14" class="agent"/><text x="606" y="477" text-anchor="middle" class="s">Render to Film</text>
+  <rect x="516" y="494" width="180" height="28" rx="14" class="agent"/><text x="606" y="513" text-anchor="middle" class="s">Arch Film Studio</text>
+  <line x1="640" y1="402" x2="640" y2="360" class="line" marker-end="url(#a)"/>
+
+  <rect x="500" y="552" width="212" height="114" rx="10" class="hot"/>
+  <text x="606" y="576" text-anchor="middle" class="t">Only on the Mac</text>
+  <text x="606" y="597" text-anchor="middle" class="xs">keys and sign-ins (secrets folder)</text>
+  <text x="606" y="614" text-anchor="middle" class="xs">daily and monthly spending limits</text>
+  <text x="606" y="631" text-anchor="middle" class="xs">approving a cost, app allowances</text>
+  <text x="606" y="648" text-anchor="middle" class="xs">every on/off switch</text>
+
+  <!-- Outside the Mac -->
+  <text x="760" y="42" class="lab">OUTSIDE</text>
+
+  <rect x="752" y="62" width="212" height="62" rx="10" class="out"/>
+  <text x="858" y="86" text-anchor="middle" class="t">Windows PC</text>
+  <text x="858" y="105" text-anchor="middle" class="xs">a window on the home screen</text>
+  <line x1="750" y1="93" x2="716" y2="93" class="dash" marker-end="url(#a)"/>
+
+  <rect x="752" y="240" width="212" height="62" rx="10" class="out"/>
+  <text x="858" y="264" text-anchor="middle" class="t">Omega Plus</text>
+  <text x="858" y="283" text-anchor="middle" class="xs">paid model provider, off by default</text>
+
+  <rect x="752" y="346" width="212" height="52" rx="10" class="out"/>
+  <text x="858" y="368" text-anchor="middle" class="t">Public web</text>
+  <text x="858" y="386" text-anchor="middle" class="xs">read only, Researcher only</text>
+
+  <rect x="752" y="412" width="212" height="52" rx="10" class="out"/>
+  <text x="858" y="434" text-anchor="middle" class="t">Runway, Higgsfield</text>
+  <text x="858" y="452" text-anchor="middle" class="xs">only what you approved</text>
+
+  <path d="M420,288 V266 H748" class="dash" marker-end="url(#a)"/>
+  <line x1="714" y1="330" x2="748" y2="368" class="dash" marker-end="url(#a)"/>
+  <line x1="714" y1="345" x2="748" y2="432" class="dash" marker-end="url(#a)"/>
+
+  <text x="752" y="510" class="xs">Dashed lines leave the Mac.</text>
+  <text x="752" y="527" class="xs">Each one is off until you</text>
+  <text x="752" y="544" class="xs">switch it on in Settings or,</text>
+  <text x="752" y="561" class="xs">for the remote door, in Terminal.</text>
+</svg>
